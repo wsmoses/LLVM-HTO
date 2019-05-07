@@ -1599,6 +1599,12 @@ def AllocAlign : InheritableAttr {
   let Documentation = [AllocAlignDocs];
 }
 
+def LLVMAttr : InheritableAttr {
+  let Spellings = [GCC<"LLVMIR">];
+  let Args = [StringArgument<"ArgName">];
+  let Documentation = [Undocumented];
+}
+
 def NoReturn : InheritableAttr {
   let Spellings = [GCC<"noreturn">, Declspec<"noreturn">];
   // FIXME: Does GCC allow this on the function instead?
