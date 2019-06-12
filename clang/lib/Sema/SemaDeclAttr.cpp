@@ -3735,6 +3735,39 @@ void Sema::AddAlignValueAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E) {
   D->addAttr(::new (Context) AlignValueAttr(Context, CI, E));
 }
 
+template <typename AttrType>
+static void handleSimpleIntStringAttribute(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // check the attribute arguments.
+  if (AL.getNumArgs() != 2) {
+    S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
+    return;
+  }
+
+  Expr *E = AL.getArgAsExpr(0);
+  ParamIdx Idx;
+  checkFunctionOrMethodParameterIndex(S, D, AL, 0, E, Idx);
+  StringRef Str;
+  S.checkStringLiteralArgumentAttr(AL, 1, Str);
+  
+  D->addAttr(::new (S.Context) AttrType(AL.getRange(), S.Context, Idx, Str,
+                                         AL.getAttributeSpellingListIndex()));
+}
+
+template <typename AttrType>
+static void handleSimpleStringAttribute(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // check the attribute arguments.
+  if (AL.getNumArgs() != 1) {
+    S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
+    return;
+  }
+
+  StringRef Str;
+  S.checkStringLiteralArgumentAttr(AL, 0, Str);
+  
+  D->addAttr(::new (S.Context) AttrType(AL.getRange(), S.Context, Str,
+                                         AL.getAttributeSpellingListIndex()));
+}
+
 static void handleAlignedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
   // check the attribute arguments.
   if (AL.getNumArgs() > 1) {
@@ -6869,6 +6902,15 @@ static void ProcessDeclAttribute(Sema &S, Scope *scope, Decl *D,
     }
     S.Diag(AL.getLoc(), diag::err_stmt_attribute_invalid_on_decl)
         << AL << D->getLocation();
+    break;
+  case ParsedAttr::AT_LLVMFN:
+    handleSimpleStringAttribute<LLVMFNAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_LLVMARG:
+    handleSimpleIntStringAttribute<LLVMARGAttr>(S, D, AL);
+    break;
+  case ParsedAttr::AT_LLVMRET:
+    handleSimpleStringAttribute<LLVMRETAttr>(S, D, AL);
     break;
   case ParsedAttr::AT_Interrupt:
     handleInterruptAttr(S, D, AL);
