@@ -730,6 +730,20 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
       SanOpts.Mask &= ~SanitizerKind::CFIUnrelatedCast;
   }
 
+  if (D) {
+    for(auto a: D->attrs()) {
+        if (auto atr = dyn_cast<LLVMFNAttr>(a)) {
+            Fn->addFnAttr(atr->getAttrName());
+        }
+        if (auto atr = dyn_cast<LLVMARGAttr>(a)) {
+            Fn->addParamAttr(atr->getParamIndex().getLLVMIndex(), llvm::Attribute::get(Fn->getContext(), atr->getAttrName(), ""));
+        }
+        //if (auto atr = dyn_cast<LLVMRETAttr>(a)) {
+        //    Fn->addFnAttr(atr->getAttrName());
+        //}
+    }
+  }
+
   // Apply xray attributes to the function (as a string, for now)
   if (D) {
     if (const auto *XRayAttr = D->getAttr<XRayInstrumentAttr>()) {
