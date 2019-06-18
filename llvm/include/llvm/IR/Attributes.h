@@ -207,6 +207,8 @@ public:
   static Attribute fromRawPointer(void *RawPtr) {
     return Attribute(reinterpret_cast<AttributeImpl*>(RawPtr));
   }
+
+  static Attribute::AttrKind parseAttrKind(StringRef Kind);
 };
 
 // Specialized opaque value conversions.

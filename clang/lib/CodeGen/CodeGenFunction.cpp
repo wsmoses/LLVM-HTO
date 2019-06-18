@@ -777,11 +777,27 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
             Fn->addFnAttr(atr->getAttrName());
         }
         if (auto atr = dyn_cast<LLVMARGAttr>(a)) {
-            Fn->addParamAttr(atr->getParamIndex().getLLVMIndex(), llvm::Attribute::get(Fn->getContext(), atr->getAttrName(), ""));
+            std::pair<StringRef, StringRef> attributeandvalue = atr->getAttrName().split('=');
+            unsigned index = llvm::AttributeList::FirstArgIndex + atr->getParamIndex().getLLVMIndex();
+            llvm::Attribute::AttrKind attrkind = llvm::Attribute::parseAttrKind(attributeandvalue.first);
+            if (attrkind != llvm::Attribute::None) {
+                assert(attributeandvalue.second.size() == 0);
+                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attrkind));
+            }
+            else
+                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attributeandvalue.first, attributeandvalue.second));
         }
-        //if (auto atr = dyn_cast<LLVMRETAttr>(a)) {
-        //    Fn->addFnAttr(atr->getAttrName());
-        //}
+        if (auto atr = dyn_cast<LLVMRETAttr>(a)) {
+            std::pair<StringRef, StringRef> attributeandvalue = atr->getAttrName().split('=');
+            unsigned index = llvm::AttributeList::ReturnIndex;
+            llvm::Attribute::AttrKind attrkind = llvm::Attribute::parseAttrKind(attributeandvalue.first);
+            if (attrkind != llvm::Attribute::None) {
+                assert(attributeandvalue.second.size() == 0);
+                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attrkind));
+            }
+            else
+                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attributeandvalue.first, attributeandvalue.second));
+        }
     }
   }
 
