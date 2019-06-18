@@ -24,48 +24,6 @@ static cl::list<std::string>
                              "example -force-attribute=foo:noinline. This "
                              "option can be specified multiple times."));
 
-static Attribute::AttrKind parseAttrKind(StringRef Kind) {
-  return StringSwitch<Attribute::AttrKind>(Kind)
-      .Case("alwaysinline", Attribute::AlwaysInline)
-      .Case("builtin", Attribute::Builtin)
-      .Case("cold", Attribute::Cold)
-      .Case("convergent", Attribute::Convergent)
-      .Case("inlinehint", Attribute::InlineHint)
-      .Case("jumptable", Attribute::JumpTable)
-      .Case("minsize", Attribute::MinSize)
-      .Case("naked", Attribute::Naked)
-      .Case("nobuiltin", Attribute::NoBuiltin)
-      .Case("noduplicate", Attribute::NoDuplicate)
-      .Case("noimplicitfloat", Attribute::NoImplicitFloat)
-      .Case("noinline", Attribute::NoInline)
-      .Case("nonlazybind", Attribute::NonLazyBind)
-      .Case("noredzone", Attribute::NoRedZone)
-      .Case("noreturn", Attribute::NoReturn)
-      .Case("nocf_check", Attribute::NoCfCheck)
-      .Case("norecurse", Attribute::NoRecurse)
-      .Case("nounwind", Attribute::NoUnwind)
-      .Case("optforfuzzing", Attribute::OptForFuzzing)
-      .Case("optnone", Attribute::OptimizeNone)
-      .Case("optsize", Attribute::OptimizeForSize)
-      .Case("readnone", Attribute::ReadNone)
-      .Case("readonly", Attribute::ReadOnly)
-      .Case("argmemonly", Attribute::ArgMemOnly)
-      .Case("returns_twice", Attribute::ReturnsTwice)
-      .Case("safestack", Attribute::SafeStack)
-      .Case("shadowcallstack", Attribute::ShadowCallStack)
-      .Case("sanitize_address", Attribute::SanitizeAddress)
-      .Case("sanitize_hwaddress", Attribute::SanitizeHWAddress)
-      .Case("sanitize_memory", Attribute::SanitizeMemory)
-      .Case("sanitize_thread", Attribute::SanitizeThread)
-      .Case("speculative_load_hardening", Attribute::SpeculativeLoadHardening)
-      .Case("ssp", Attribute::StackProtect)
-      .Case("sspreq", Attribute::StackProtectReq)
-      .Case("sspstrong", Attribute::StackProtectStrong)
-      .Case("strictfp", Attribute::StrictFP)
-      .Case("uwtable", Attribute::UWTable)
-      .Default(Attribute::None);
-}
-
 /// If F has any forced attributes given on the command line, add them.
 static void addForcedAttributes(Function &F) {
   for (auto &S : ForceAttributes) {
@@ -73,7 +31,7 @@ static void addForcedAttributes(Function &F) {
     if (KV.first != F.getName())
       continue;
 
-    auto Kind = parseAttrKind(KV.second);
+    auto Kind = Attribute::parseAttrKind(KV.second);
     if (Kind == Attribute::None) {
       LLVM_DEBUG(dbgs() << "ForcedAttribute: " << KV.second
                         << " unknown or not handled!\n");
