@@ -778,7 +778,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         }
         if (auto atr = dyn_cast<LLVMARGAttr>(a)) {
             std::pair<StringRef, StringRef> attributeandvalue = atr->getAttrName().split('=');
-            unsigned index = llvm::AttributeList::FirstArgIndex + atr->getParamIndex().getLLVMIndex();
+            unsigned index = llvm::AttributeList::FirstArgIndex + atr->getParamIndex(); //.getLLVMIndex();
             llvm::Attribute::AttrKind attrkind = llvm::Attribute::parseAttrKind(attributeandvalue.first);
             if (attrkind != llvm::Attribute::None) {
                 assert(attributeandvalue.second.size() == 0);

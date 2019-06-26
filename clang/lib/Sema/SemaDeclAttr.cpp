@@ -3463,20 +3463,9 @@ static void handleFormatAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     D->addAttr(NewAttr);
 }
 
-/// Handle __attribute__((callback(CalleeIdx, PayloadIdx0, ...))) attributes.
-static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
-  // The index that identifies the callback callee is mandatory.
-  if (AL.getNumArgs() == 0) {
-    S.Diag(AL.getLoc(), diag::err_callback_attribute_no_callee)
-        << AL.getRange();
-    return;
-  }
-
-  bool HasImplicitThisParam = isInstanceMethod(D);
-  int32_t NumArgs = getFunctionOrMethodNumParams(D);
-
-  FunctionDecl *FD = D->getAsFunction();
-  assert(FD && "Expected a function declaration!");
+static int32_t getParamFromNameOrIndex(Sema &S, FunctionDecl *FD, const ParsedAttr &AL, unsigned I) {
+  bool HasImplicitThisParam = isInstanceMethod(FD);
+  int32_t NumArgs = getFunctionOrMethodNumParams(FD);
 
   llvm::StringMap<int> NameIdxMapping;
   NameIdxMapping["__"] = -1;
@@ -3489,8 +3478,6 @@ static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
 
   auto UnknownName = NameIdxMapping.end();
 
-  SmallVector<int, 8> EncodingIndices;
-  for (unsigned I = 0, E = AL.getNumArgs(); I < E; ++I) {
     SourceRange SR;
     int32_t ArgIdx;
 
@@ -3500,7 +3487,7 @@ static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
       if (It == UnknownName) {
         S.Diag(AL.getLoc(), diag::err_callback_attribute_argument_unknown)
             << IdLoc->Ident << IdLoc->Loc;
-        return;
+        return -1;
       }
 
       SR = SourceRange(IdLoc->Loc);
@@ -3513,14 +3500,14 @@ static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
                                false)) {
         S.Diag(AL.getLoc(), diag::err_attribute_argument_out_of_bounds)
             << AL << (I + 1) << IdxExpr->getSourceRange();
-        return;
+        return -1;
       }
 
       // Check oob, excluding the special values, 0 and -1.
       if (ArgIdx < -1 || ArgIdx > NumArgs) {
         S.Diag(AL.getLoc(), diag::err_attribute_argument_out_of_bounds)
             << AL << (I + 1) << IdxExpr->getSourceRange();
-        return;
+        return -1;
       }
 
       SR = IdxExpr->getSourceRange();
@@ -3531,7 +3518,7 @@ static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (ArgIdx == 0 && !HasImplicitThisParam) {
       S.Diag(AL.getLoc(), diag::err_callback_implicit_this_not_available)
           << (I + 1) << SR;
-      return;
+      return -1;
     }
 
     // Adjust for the case we do not have an implicit "this" parameter. In this
@@ -3539,9 +3526,31 @@ static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
     if (!HasImplicitThisParam && ArgIdx > 0)
       ArgIdx -= 1;
 
+    return ArgIdx;
+}
+
+/// Handle __attribute__((callback(CalleeIdx, PayloadIdx0, ...))) attributes.
+static void handleCallbackAttr(Sema &S, Decl *D, const ParsedAttr &AL) {
+  // The index that identifies the callback callee is mandatory.
+  if (AL.getNumArgs() == 0) {
+    S.Diag(AL.getLoc(), diag::err_callback_attribute_no_callee)
+        << AL.getRange();
+    return;
+  }
+
+
+  FunctionDecl *FD = D->getAsFunction();
+  assert(FD && "Expected a function declaration!");
+
+
+  SmallVector<int, 8> EncodingIndices;
+  for (unsigned I = 0, E = AL.getNumArgs(); I < E; ++I) {
+    int32_t ArgIdx = getParamFromNameOrIndex(S, FD, AL, I);
+    if (ArgIdx == -1) return;
     EncodingIndices.push_back(ArgIdx);
   }
 
+  bool HasImplicitThisParam = isInstanceMethod(FD);
   int CalleeIdx = EncodingIndices.front();
   // Check if the callee index is proper, thus not "this" and not "unknown".
   // This means the "CalleeIdx" has to be non-negative if "HasImplicitThisParam"
@@ -3744,12 +3753,15 @@ static void handleSimpleIntStringAttribute(Sema &S, Decl *D, const ParsedAttr &A
   }
 
   Expr *E = AL.getArgAsExpr(0);
-  ParamIdx Idx;
-  checkFunctionOrMethodParameterIndex(S, D, AL, 0, E, Idx);
+
+  FunctionDecl *FD = D->getAsFunction();
+  assert(FD && "Expected a function declaration!");
+
+  int32_t ArgIdx = getParamFromNameOrIndex(S, FD, AL, 0);
   StringRef Str;
   S.checkStringLiteralArgumentAttr(AL, 1, Str);
   
-  D->addAttr(::new (S.Context) AttrType(AL.getRange(), S.Context, Idx, Str,
+  D->addAttr(::new (S.Context) AttrType(AL.getRange(), S.Context, ArgIdx, Str,
                                          AL.getAttributeSpellingListIndex()));
 }
 

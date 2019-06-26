@@ -212,6 +212,9 @@ class VariadicParamIdxArgument<string name> : Argument<name, 1>;
 // A list of identifiers matching parameters or ParamIdx indices.
 class VariadicParamOrParamIdxArgument<string name> : Argument<name, 1>;
 
+// Like VariadicParamOrParamIdxArgument but for a single function parameter index.
+class ParamOrParamIdxArgument<string name, bit opt = 0> : Argument<name, opt>;
+
 // Like VariadicParamIdxArgument but for a single function parameter index.
 class ParamIdxArgument<string name, bit opt = 0> : Argument<name, opt>;
 
@@ -1824,7 +1827,7 @@ def LLVMFN : InheritableAttr {
 
 def LLVMARG : InheritableAttr {
   let Spellings = [GCC<"LLVMARG">];
-  let Args = [ParamIdxArgument<"ParamIndex">, StringArgument<"AttrName">];
+  let Args = [ParamOrParamIdxArgument<"ParamIndex">, StringArgument<"AttrName">];
   let Documentation = [Undocumented];
 }
 
