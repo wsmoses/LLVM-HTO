@@ -1290,6 +1290,8 @@ createArgument(const Record &Arg, StringRef Attr,
     Ptr = llvm::make_unique<VariadicParamIdxArgument>(Arg, Attr);
   else if (ArgName == "VariadicParamOrParamIdxArgument")
     Ptr = llvm::make_unique<VariadicParamOrParamIdxArgument>(Arg, Attr);
+  else if (ArgName == "ParamOrParamIdxArgument")
+    Ptr = llvm::make_unique<SimpleArgument>(Arg, Attr, "int");
   else if (ArgName == "ParamIdxArgument")
     Ptr = llvm::make_unique<SimpleArgument>(Arg, Attr, "ParamIdx");
   else if (ArgName == "VariadicIdentifierArgument")
@@ -2184,6 +2186,7 @@ static bool keywordThisIsaIdentifierInArgument(const Record *Arg) {
          llvm::StringSwitch<bool>(
              Arg->getSuperClasses().back().first->getName())
              .Case("VariadicParamOrParamIdxArgument", true)
+             .Case("ParamOrParamIdxArgument", true)
              .Default(false);
 }
 
