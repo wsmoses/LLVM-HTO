@@ -262,6 +262,13 @@ OptimizationRemark::OptimizationRemark(const char *PassName,
                                    RemarkName, *Func, Func->getSubprogram(),
                                    getFirstFunctionBlock(Func)) {}
 
+OptimizationRemark::OptimizationRemark(const char *PassName,
+                                       StringRef RemarkName,
+                                       const Function *Func)
+    : DiagnosticInfoIROptimization(DK_OptimizationRemark, DS_Remark, PassName,
+                                   RemarkName, *Func, Func->getSubprogram(),
+                                   &getFirstFunctionBlock(Func)) {}
+
 bool OptimizationRemark::isEnabled() const {
   const Function &Fn = getFunction();
   LLVMContext &Ctx = Fn.getContext();

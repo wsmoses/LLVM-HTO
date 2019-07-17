@@ -1135,6 +1135,7 @@ def BackendInlineAsm : DiagGroup<"inline-asm">;
 def BackendFrameLargerThanEQ : DiagGroup<"frame-larger-than=">;
 def BackendPlugin : DiagGroup<"backend-plugin">;
 def RemarkBackendPlugin : DiagGroup<"remark-backend-plugin">;
+def BackendOptimizationRemarkAnnotation : DiagGroup<"annotation">;
 def BackendOptimizationRemark : DiagGroup<"pass">;
 def BackendOptimizationRemarkMissed : DiagGroup<"pass-missed">;
 def BackendOptimizationRemarkAnalysis : DiagGroup<"pass-analysis">;

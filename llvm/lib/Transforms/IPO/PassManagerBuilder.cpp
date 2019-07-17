@@ -871,7 +871,7 @@ void PassManagerBuilder::populateModulePassManager(
   MPM.add(createCFGSimplificationPass());
 
   addExtensionsToPM(EP_OptimizerLast, MPM);
-
+  MPM.add(createEmitAnnotationsPass());
   if (PrepareForLTO) {
     MPM.add(createCanonicalizeAliasesPass());
     // Rename anon globals to be able to handle them in the summary

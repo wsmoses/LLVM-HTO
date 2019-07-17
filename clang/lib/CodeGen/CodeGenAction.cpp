@@ -409,6 +409,8 @@ namespace clang {
     void
     OptimizationRemarkHandler(const llvm::DiagnosticInfoOptimizationBase &D);
     void OptimizationRemarkHandler(
+        const llvm::OptimizationRemarkAnnotation &D);
+    void OptimizationRemarkHandler(
         const llvm::OptimizationRemarkAnalysisFPCommute &D);
     void OptimizationRemarkHandler(
         const llvm::OptimizationRemarkAnalysisAliasing &D);
@@ -773,6 +775,28 @@ void BackendConsumer::OptimizationRemarkHandler(
 }
 
 void BackendConsumer::OptimizationRemarkHandler(
+    const llvm::OptimizationRemarkAnnotation &D) {
+  // Optimization analysis remarks are active if the pass name is set to
+  // llvm::DiagnosticInfo::AlwasyPrint or if the -Rpass-analysis flag has a
+  // regular expression that matches the name of the pass name in \p D.
+
+  StringRef Filename;
+  unsigned Line, Column;
+  bool BadDebugInfo = false;
+  FullSourceLoc Loc =
+      getBestLocationFromDebugLoc(D, BadDebugInfo, Filename, Line, Column);
+
+  std::string Msg;
+  raw_string_ostream MsgStream(Msg);
+  MsgStream << D.getMsg() << " the correct call function ";
+
+  Diags.Report(Loc, diag::remark_fe_backend_optimization_remark_annotation)
+      << MsgStream.str()
+      << AddFlagValue(D.getPassName())
+      ;
+}
+
+void BackendConsumer::OptimizationRemarkHandler(
     const llvm::OptimizationRemarkAnalysisFPCommute &D) {
   // Optimization analysis remarks are active if the pass name is set to
   // llvm::DiagnosticInfo::AlwasyPrint or if the -Rpass-analysis flag has a
@@ -841,6 +865,11 @@ void BackendConsumer::DiagnosticHandlerImpl(const DiagnosticInfo &DI) {
     // Optimization remarks are always handled completely by this
     // handler. There is no generic way of emitting them.
     OptimizationRemarkHandler(cast<OptimizationRemarkAnalysis>(DI));
+    return;
+  case llvm::DK_OptimizationRemarkAnnotation:
+    // Optimization remarks are always handled completely by this
+    // handler. There is no generic way of emitting them.
+    OptimizationRemarkHandler(cast<OptimizationRemarkAnnotation>(DI));
     return;
   case llvm::DK_OptimizationRemarkAnalysisFPCommute:
     // Optimization remarks are always handled completely by this

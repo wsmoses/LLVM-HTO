@@ -66,6 +66,7 @@ enum DiagnosticKind {
   DK_OptimizationRemarkAnalysis,
   DK_OptimizationRemarkAnalysisFPCommute,
   DK_OptimizationRemarkAnalysisAliasing,
+  DK_OptimizationRemarkAnnotation,
   DK_OptimizationFailure,
   DK_FirstRemark = DK_OptimizationRemark,
   DK_LastRemark = DK_OptimizationFailure,
@@ -700,6 +701,11 @@ public:
   OptimizationRemark(const char *PassName, StringRef RemarkName,
                      const Function *Func);
 
+  /// Same as above, but the debug location and code region are derived from \p
+  /// Func with custom enum.
+  OptimizationRemark(enum DiagnosticKind Kind, const char *PassName, StringRef RemarkName,
+                     const Function *Func);
+
   static bool classof(const DiagnosticInfo *DI) {
     return DI->getKind() == DK_OptimizationRemark;
   }
@@ -831,6 +837,27 @@ private:
                                      PassName, Fn, Loc, Msg) {}
 };
 
+/// Diagnostic information for optimization analysis remarks related to
+/// annotation emission
+class OptimizationRemarkAnnotation : public OptimizationRemark {
+  virtual void anchor();
+public:
+  /// \p PassName is the name of the pass emitting this diagnostic. If this name
+  /// matches the regular expression given in -Rpass-analysis=, then the
+  /// diagnostic will be emitted. \p RemarkName is a textual identifier for the
+  /// remark (single-word, camel-case). \p Loc is the debug location and \p
+  /// CodeRegion is the region that the optimization operates on (currently only
+  /// block is supported). The front-end will append its own message related to
+  /// options that address floating-point non-commutativity.
+  OptimizationRemarkAnnotation(const char *PassName,
+                                      StringRef RemarkName,
+                                      const Function *Fn)
+      : OptimizationRemark(DK_OptimizationRemarkAnnotation, PassName, RemarkName, Fn) {}
+
+  static bool classof(const DiagnosticInfo *DI) {
+    return DI->getKind() == DK_OptimizationRemarkAnnotation;
+  }
+};
 /// Diagnostic information for optimization analysis remarks related to
 /// floating-point non-commutativity.
 class OptimizationRemarkAnalysisFPCommute : public OptimizationRemarkAnalysis {

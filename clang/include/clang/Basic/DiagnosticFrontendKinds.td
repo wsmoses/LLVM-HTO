@@ -50,6 +50,8 @@ def remark_fe_backend_optimization_remark_missed : Remark<"%0">, BackendInfo,
     InGroup<BackendOptimizationRemarkMissed>;
 def remark_fe_backend_optimization_remark_analysis : Remark<"%0">, BackendInfo,
     InGroup<BackendOptimizationRemarkAnalysis>;
+def remark_fe_backend_optimization_remark_annotation : Remark<"%0">, BackendInfo,
+    InGroup<BackendOptimizationRemarkAnnotation>;
 def remark_fe_backend_optimization_remark_analysis_fpcommute : Remark<"%0; "
     "allow reordering by specifying '#pragma clang loop vectorize(enable)' "
     "before the loop or by providing the compiler option '-ffast-math'.">,
