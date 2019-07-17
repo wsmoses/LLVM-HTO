@@ -168,6 +168,8 @@
 #include "llvm/Transforms/Utils/BreakCriticalEdges.h"
 #include "llvm/Transforms/Utils/CanonicalizeAliases.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
+#include "llvm/Transforms/Utils.h"
+#include "llvm/Transforms/Utils/EmitAnnotations.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
 #include "llvm/Transforms/Utils/LoopSimplify.h"
@@ -1038,6 +1040,10 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
 
   // Now add the optimization pipeline.
   MPM.addPass(buildModuleOptimizationPipeline(Level, DebugLogging, LTOPreLink));
+
+  FunctionPassManager FPM(DebugLogging);
+  FPM.addPass(EmitAnnotationsPass());
+  MPM.addPass(createModuleToFunctionPassAdaptor(std::move(FPM)));
 
   return MPM;
 }
