@@ -12,6 +12,7 @@ add_llvm_library(LLVMTransformUtils
   CodeExtractor.cpp
   CtorUtils.cpp
   DemoteRegToStack.cpp
+  EmitAnnotations.cpp
   EntryExitInstrumenter.cpp
   EscapeEnumerator.cpp
   Evaluator.cpp
