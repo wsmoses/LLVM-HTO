@@ -104,6 +104,13 @@ FunctionPass *createAddDiscriminatorsPass();
 //
 FunctionPass *createPromoteMemoryToRegisterPass();
 
+
+//===----------------------------------------------------------------------===//
+//
+// EmitAnnotations - This pass is used to create annotations about derived LLVM
+// information that can be fed back in through the front end
+FunctionPass *createEmitAnnotationsPass();
+
 //===----------------------------------------------------------------------===//
 //
 // LoopSimplify - Insert Pre-header blocks into the CFG for every function in
