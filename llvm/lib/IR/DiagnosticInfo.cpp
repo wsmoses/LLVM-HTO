@@ -262,10 +262,10 @@ OptimizationRemark::OptimizationRemark(const char *PassName,
                                    RemarkName, *Func, Func->getSubprogram(),
                                    getFirstFunctionBlock(Func)) {}
 
-OptimizationRemark::OptimizationRemark(const char *PassName,
+OptimizationRemark::OptimizationRemark(enum DiagnosticKind kind, const char *PassName,
                                        StringRef RemarkName,
                                        const Function *Func)
-    : DiagnosticInfoIROptimization(DK_OptimizationRemark, DS_Remark, PassName,
+    : DiagnosticInfoIROptimization(kind, DS_Remark, PassName,
                                    RemarkName, *Func, Func->getSubprogram(),
                                    &getFirstFunctionBlock(Func)) {}
 

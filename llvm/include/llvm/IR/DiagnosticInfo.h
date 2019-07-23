@@ -840,7 +840,6 @@ private:
 /// Diagnostic information for optimization analysis remarks related to
 /// annotation emission
 class OptimizationRemarkAnnotation : public OptimizationRemark {
-  virtual void anchor();
 public:
   /// \p PassName is the name of the pass emitting this diagnostic. If this name
   /// matches the regular expression given in -Rpass-analysis=, then the

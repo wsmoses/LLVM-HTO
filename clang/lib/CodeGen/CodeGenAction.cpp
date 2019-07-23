@@ -788,11 +788,10 @@ void BackendConsumer::OptimizationRemarkHandler(
 
   std::string Msg;
   raw_string_ostream MsgStream(Msg);
-  MsgStream << D.getMsg() << " the correct call function ";
+  MsgStream << D.getMsg(); 
 
   Diags.Report(Loc, diag::remark_fe_backend_optimization_remark_annotation)
       << MsgStream.str()
-      << AddFlagValue(D.getPassName())
       ;
 }
 
