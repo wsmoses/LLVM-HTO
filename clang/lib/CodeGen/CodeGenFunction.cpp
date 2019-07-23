@@ -772,31 +772,38 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         SanOpts.Mask &= ~SanitizerKind::Null;
   
   if (D) {
-    for(auto a: D->attrs()) {
-        if (auto atr = dyn_cast<LLVMFNAttr>(a)) {
-            Fn->addFnAttr(atr->getAttrName());
-        }
-        if (auto atr = dyn_cast<LLVMARGAttr>(a)) {
-            std::pair<StringRef, StringRef> attributeandvalue = atr->getAttrName().split('=');
-            unsigned index = llvm::AttributeList::FirstArgIndex + atr->getParamIndex(); //.getLLVMIndex();
-            llvm::Attribute::AttrKind attrkind = llvm::Attribute::parseAttrKind(attributeandvalue.first);
-            if (attrkind != llvm::Attribute::None) {
-                assert(attributeandvalue.second.size() == 0);
-                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attrkind));
+    for(auto Attr: D->attrs()) {
+        if (isa<LLVMARGAttr>(Attr) || isa<LLVMRETAttr>(Attr) || isa<LLVMFNAttr>(Attr)) {
+            std::pair<StringRef, StringRef> AttributeAndValue;
+            int Index;
+
+            if (auto RetAttr = dyn_cast<LLVMRETAttr>(Attr)) {
+                AttributeAndValue = RetAttr->getAttrName().split('=');
+                Index = llvm::AttributeList::ReturnIndex;
+            } else if (auto ArgAttr = dyn_cast<LLVMARGAttr>(Attr)) {
+                AttributeAndValue = ArgAttr->getAttrName().split('=');
+                Index = llvm::AttributeList::FirstArgIndex + ArgAttr->getParamIndex();
+            } else if (auto ArgAttr = dyn_cast<LLVMFNAttr>(Attr)) {
+                AttributeAndValue = ArgAttr->getAttrName().split('=');
+                Index = -1;
+            } else assert(0 && "must be llvm ret or arg attribute");
+            
+            llvm::Attribute::AttrKind AttrKind = llvm::Attribute::parseAttrKind(AttributeAndValue.first);
+            if (AttrKind != llvm::Attribute::None) {
+                assert(AttributeAndValue.second.size() == 0 && "Enum Attribute cannot have value");
+                if (Index == -1) {
+                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttrKind));
+                } else {
+                  Fn->addParamAttr(Index, llvm::Attribute::get(Fn->getContext(), AttrKind));
+                }
             }
-            else
-                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attributeandvalue.first, attributeandvalue.second));
-        }
-        if (auto atr = dyn_cast<LLVMRETAttr>(a)) {
-            std::pair<StringRef, StringRef> attributeandvalue = atr->getAttrName().split('=');
-            unsigned index = llvm::AttributeList::ReturnIndex;
-            llvm::Attribute::AttrKind attrkind = llvm::Attribute::parseAttrKind(attributeandvalue.first);
-            if (attrkind != llvm::Attribute::None) {
-                assert(attributeandvalue.second.size() == 0);
-                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attrkind));
+            else {
+                if (Index == -1) {
+                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
+                } else {
+                  Fn->addParamAttr(Index, llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
+                }
             }
-            else
-                Fn->addParamAttr(index, llvm::Attribute::get(Fn->getContext(), attributeandvalue.first, attributeandvalue.second));
         }
     }
   }

@@ -1820,19 +1820,19 @@ def AllocAlign : InheritableAttr {
 }
 
 def LLVMFN : InheritableAttr {
-  let Spellings = [GCC<"LLVMFN">];
+  let Spellings = [Clang<"fn_attr">];
   let Args = [StringArgument<"AttrName">];
   let Documentation = [Undocumented];
 }
 
 def LLVMARG : InheritableAttr {
-  let Spellings = [GCC<"LLVMARG">];
+  let Spellings = [Clang<"arg_attr">];
   let Args = [ParamOrParamIdxArgument<"ParamIndex">, StringArgument<"AttrName">];
   let Documentation = [Undocumented];
 }
 
 def LLVMRET : InheritableAttr {
-  let Spellings = [GCC<"LLVMRET">];
+  let Spellings = [Clang<"ret_attr">];
   let Args = [StringArgument<"AttrName">];
   let Documentation = [Undocumented];
 }
