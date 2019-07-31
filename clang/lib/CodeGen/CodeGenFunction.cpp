@@ -761,14 +761,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD,
                 if (Index == -1) {
                   Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttrKind));
                 } else {
-                  Fn->addParamAttr(Index, llvm::Attribute::get(Fn->getContext(), AttrKind));
+                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttrKind));
                 }
             }
             else {
                 if (Index == -1) {
                   Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
                 } else {
-                  Fn->addParamAttr(Index, llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
+                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
                 }
             }
         }
