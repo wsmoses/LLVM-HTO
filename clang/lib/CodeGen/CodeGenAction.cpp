@@ -128,7 +128,7 @@ namespace clang {
     // This is here so that the diagnostic printer knows the module a diagnostic
     // refers to.
     llvm::Module *CurLinkModule = nullptr;
-
+    CompilerInstance *CI;
   public:
     BackendConsumer(BackendAction Action, DiagnosticsEngine &Diags,
                     const HeaderSearchOptions &HeaderSearchOpts,
@@ -139,7 +139,7 @@ namespace clang {
                     const std::string &InFile,
                     SmallVector<LinkModule, 4> LinkModules,
                     std::unique_ptr<raw_pwrite_stream> OS, LLVMContext &C,
-                    CoverageSourceInfo *CoverageInfo = nullptr)
+                    CoverageSourceInfo *CoverageInfo = nullptr, CompilerInstance *_CI = nullptr)
         : Diags(Diags), Action(Action), HeaderSearchOpts(HeaderSearchOpts),
           CodeGenOpts(CodeGenOpts), TargetOpts(TargetOpts), LangOpts(LangOpts),
           AsmOutStream(std::move(OS)), Context(nullptr),
@@ -147,7 +147,7 @@ namespace clang {
           LLVMIRGenerationRefCount(0),
           Gen(CreateLLVMCodeGen(Diags, InFile, HeaderSearchOpts, PPOpts,
                                 CodeGenOpts, C, CoverageInfo)),
-          LinkModules(std::move(LinkModules)) {
+          LinkModules(std::move(LinkModules)), CI(_CI) {
       FrontendTimesIsEnabled = TimePasses;
       llvm::TimePassesIsEnabled = TimePasses;
     }
@@ -774,6 +774,8 @@ void BackendConsumer::OptimizationRemarkHandler(
   }
 }
 
+#include "clang/Sema/Lookup.h"
+#include <fstream>
 void BackendConsumer::OptimizationRemarkHandler(
     const llvm::OptimizationRemarkAnnotation &D) {
   // Optimization analysis remarks are active if the pass name is set to
@@ -790,6 +792,69 @@ void BackendConsumer::OptimizationRemarkHandler(
   raw_string_ostream MsgStream(Msg);
   MsgStream << D.getMsg(); 
 
+  GlobalDecl Decl;
+  auto foo = Gen->CGM().lookupRepresentativeDecl(D.getFunction().getName(), Decl);
+  if (!Decl.getDecl()) {
+        llvm::errs() << "!!!couldn't lookup decl\n";
+             return;
+  }
+  
+  const FunctionDecl* fd = dyn_cast<FunctionDecl>(Decl.getDecl());
+  if (!Decl.getDecl()) {
+      llvm::errs() << "!!!couldn't lookup function decl\n";
+             return;
+  }
+  //fd->dump();
+  std::ofstream outfile;
+
+  outfile.open("/tmp/annotations.h", std::ios_base::app);
+  //outfile << D.getMsg() << " " << *fd << "\n";
+  //
+  StringRef bd = Loc.getBufferData();
+    
+  auto dstring = bd.substr( 
+          FullSourceLoc(fd->getOuterLocStart(), Context->getSourceManager()).getFileOffset());
+  auto pos = dstring.find(';');
+  auto pos2 = dstring.find('{');
+  if (pos == StringRef::npos || (pos2 != StringRef::npos && pos2 < pos) )
+      pos = pos2;
+  dstring = dstring.substr(0, pos);
+  llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n" << dstring << ";\n";
+  
+  outfile << "__attribute__(( " << D.getMsg() << " ))\n" << dstring.str () << ";\n";
+  outfile.close();
+
+  /*
+  llvm::errs() << "begin redecls\n";
+
+  for(auto a: fd->redecls ()) {
+    a->dump();
+  }
+  llvm::errs() << "end redecls\n";
+  */
+  
+  /*
+  if (Decl.getDecl()->getBeginLoc() != Loc) {
+      Decl.getDecl()->getLocation().dump(Context->getSourceManager());
+      Decl.getDecl()->getLocation().dump(Context->getSourceManager());
+      Decl.getDecl()->getLocation().dump(Context->getSourceManager());
+      Loc.dump();//Context->getSourceManager());
+        llvm::errs() << "!!!decl at different source\n";
+             return;
+  }
+  */
+/*
+  LookupResult res(CI->getSema(), fd->getNameInfo(), Sema::LookupNameKind::LookupOrdinaryName, Sema::ForExternalRedeclaration );
+  //LookupResult res(CI->getSema(), fd->getNameInfo(), Sema::LookupNameKind::LookupUsingDeclName, Sema::ForVisibleRedeclaration );
+  Scope* sc = CI->getSema().TUScope;
+  while(sc->getParent()) sc = sc->getParent();
+  CI->getSema().LookupName(res, sc);
+  llvm::errs() << "begin res\n";
+  for(auto a: res) {
+    a->dump();
+  }
+  llvm::errs() << "end res\n";
+  */
   Diags.Report(Loc, diag::remark_fe_backend_optimization_remark_annotation)
       << MsgStream.str()
       ;
@@ -1026,7 +1091,7 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
       BA, CI.getDiagnostics(), CI.getHeaderSearchOpts(),
       CI.getPreprocessorOpts(), CI.getCodeGenOpts(), CI.getTargetOpts(),
       CI.getLangOpts(), CI.getFrontendOpts().ShowTimers, std::string(InFile),
-      std::move(LinkModules), std::move(OS), *VMContext, CoverageInfo));
+      std::move(LinkModules), std::move(OS), *VMContext, CoverageInfo, &CI));
   BEConsumer = Result.get();
 
   // Enable generating macro debug info only when debug info is not disabled and

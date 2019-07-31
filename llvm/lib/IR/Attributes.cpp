@@ -563,6 +563,7 @@ Attribute::AttrKind Attribute::parseAttrKind(StringRef Kind) {
       .Case("minsize", Attribute::MinSize)
       .Case("naked", Attribute::Naked)
       .Case("nobuiltin", Attribute::NoBuiltin)
+      .Case("nocapture", Attribute::NoCapture)
       .Case("noduplicate", Attribute::NoDuplicate)
       .Case("noimplicitfloat", Attribute::NoImplicitFloat)
       .Case("noinline", Attribute::NoInline)

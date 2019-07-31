@@ -36,15 +36,23 @@ std::string fixQuotes(std::string str) {
 void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
         OptimizationRemarkAnnotation annotations(DEBUG_TYPE, "annotation ", F);
         AttributeList list = F->getAttributes();
+        bool prev = false;
         for(auto a : list.getFnAttributes()) {
+            if (prev) annotations << ",";
+            prev = true;
             annotations << "fn_attr(" << fixQuotes(a.getAsString(true)) << ") ";
         }
         for(auto a : list.getRetAttributes()) {
+            if (prev) annotations << ",";
+            prev = true;
             annotations << "ret_attr(" << fixQuotes(a.getAsString(true)) << ") ";
         }
-        for(unsigned i=0; i<F->getFunctionType()->getNumParams(); i++)
+        for(unsigned i=0; i<F->getFunctionType()->getNumParams(); i++) {
             for(auto a : list.getParamAttributes(i)) {
-            annotations << "arg_attr(" << std::to_string(i) << ", " << fixQuotes(a.getAsString(true)) << ") ";
+              if (prev) annotations << ",";
+              prev = true;
+              annotations << "arg_attr(" << std::to_string(i+1) << ", " << fixQuotes(a.getAsString(true)) << ") ";
+            }
         }
         annotations << "\n";
       ORE.emit(annotations);
