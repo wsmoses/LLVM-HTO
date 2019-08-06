@@ -37,22 +37,41 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
         OptimizationRemarkAnnotation annotations(DEBUG_TYPE, "annotation ", F);
         AttributeList list = F->getAttributes();
         bool prev = false;
+        if (F->hasPrivateLinkage() || F->hasInternalLinkage()) return;
+        F->dump();
         for(auto a : list.getFnAttributes()) {
             if (prev) annotations << ",";
             prev = true;
             annotations << "fn_attr(" << fixQuotes(a.getAsString(true)) << ") ";
         }
+        bool structreturn = false;
+        unsigned j = 0;
+        for(unsigned i=0; i<F->getFunctionType()->getNumParams(); i++) {
+            if (list.hasParamAttribute(i, Attribute::StructRet)) {
+                assert(structreturn == false);
+                structreturn = true;
+                /*
+                for(auto a : list.getParamAttributes(i)) {
+                  if (a == Attribute::StructReturn) continue;
+                  if (prev) annotations << ",";
+                  prev = true;
+                  annotations << "ret_attr(" << fixQuotes(a.getAsString(true)) << ") ";
+                }
+                */
+            } else {
+                for(auto a : list.getParamAttributes(i)) {
+                  if (prev) annotations << ",";
+                  prev = true;
+                  annotations << "arg_attr(" << std::to_string(j+1) << ", " << fixQuotes(a.getAsString(true)) << ") ";
+                }
+                j++;
+            }
+        }
         for(auto a : list.getRetAttributes()) {
+            assert(structreturn == false);
             if (prev) annotations << ",";
             prev = true;
             annotations << "ret_attr(" << fixQuotes(a.getAsString(true)) << ") ";
-        }
-        for(unsigned i=0; i<F->getFunctionType()->getNumParams(); i++) {
-            for(auto a : list.getParamAttributes(i)) {
-              if (prev) annotations << ",";
-              prev = true;
-              annotations << "arg_attr(" << std::to_string(i+1) << ", " << fixQuotes(a.getAsString(true)) << ") ";
-            }
         }
         annotations << "\n";
       ORE.emit(annotations);
