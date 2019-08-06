@@ -2149,6 +2149,52 @@ void CodeGenModule::ConstructAttributeList(
     ArgAttrs[IRFunctionArgs.getInallocaArgNo()] =
         llvm::AttributeSet::get(getLLVMContext(), Attrs);
   }
+  
+  if (TargetDecl) {
+    bool sr0 = 0 >= ArgAttrs.size() && ArgAttrs[0].hasAttribute(llvm::Attribute::StructRet);
+    auto sr1 = 1 >= ArgAttrs.size() && ArgAttrs[1].hasAttribute(llvm::Attribute::StructRet);
+    for(auto Attr: TargetDecl->attrs()) {
+        if (isa<LLVMARGAttr>(Attr) || isa<LLVMRETAttr>(Attr) || isa<LLVMFNAttr>(Attr)) {
+            std::pair<StringRef, StringRef> AttributeAndValue;
+            int Index;
+
+            if (auto RetAttr = dyn_cast<LLVMRETAttr>(Attr)) {
+                AttributeAndValue = RetAttr->getAttrName().split('=');
+                Index = llvm::AttributeList::ReturnIndex;
+            } else if (auto ArgAttr = dyn_cast<LLVMARGAttr>(Attr)) {
+                AttributeAndValue = ArgAttr->getAttrName().split('=');
+                Index = llvm::AttributeList::FirstArgIndex + ArgAttr->getParamIndex();
+                if (sr1 && Index>=1) Index++;
+                if (sr0) Index++;
+            } else if (auto ArgAttr = dyn_cast<LLVMFNAttr>(Attr)) {
+                AttributeAndValue = ArgAttr->getAttrName().split('=');
+                Index = -1;
+            } else assert(0 && "must be llvm ret or arg attribute");
+            
+            llvm::Attribute::AttrKind AttrKind = llvm::Attribute::parseAttrKind(AttributeAndValue.first);
+            if (AttrKind != llvm::Attribute::None) {
+                assert(AttributeAndValue.second.size() == 0 && "Enum Attribute cannot have value");
+                if (Index == -1) {
+                  FuncAttrs =FuncAttrs.addAttribute(getLLVMContext(), AttrKind);
+                } else if (Index == llvm::AttributeList::ReturnIndex) {
+                  RetAttrs = RetAttrs.addAttribute(getLLVMContext(), AttrKind);
+                } else {
+                  ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] = ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttribute(getLLVMContext(), AttrKind);
+                }
+            }
+            else {
+                if (Index == -1) {
+                  FuncAttrs = FuncAttrs.addAttribute(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
+                } else if (Index == llvm::AttributeList::ReturnIndex) {
+                  RetAttrs =RetAttrs.addAttribute(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
+                } else {
+                  ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] = ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttribute(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
+                }
+            }
+        }
+    }
+  }
+
 
   unsigned ArgNo = 0;
   for (CGFunctionInfo::const_arg_iterator I = FI.arg_begin(),

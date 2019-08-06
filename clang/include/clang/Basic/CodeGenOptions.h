@@ -276,6 +276,8 @@ public:
   /// -Rpass=regexp flag.
   std::shared_ptr<llvm::Regex> OptimizationRemarkPattern;
 
+  bool OptimizationRemarkAnnotation;
+
   /// Regular expression to select optimizations for which we should enable
   /// missed optimization remarks. Transformation passes whose name matches this
   /// expression (and support this feature), will emit a diagnostic

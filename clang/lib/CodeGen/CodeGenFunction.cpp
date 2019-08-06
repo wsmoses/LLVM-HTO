@@ -772,6 +772,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
         SanOpts.Mask &= ~SanitizerKind::Null;
   
   if (D) {
+    auto sr0 = Fn->hasParamAttribute(0, llvm::Attribute::StructRet);
+    auto sr1 = Fn->hasParamAttribute(1, llvm::Attribute::StructRet);
     for(auto Attr: D->attrs()) {
         if (isa<LLVMARGAttr>(Attr) || isa<LLVMRETAttr>(Attr) || isa<LLVMFNAttr>(Attr)) {
             std::pair<StringRef, StringRef> AttributeAndValue;
@@ -783,6 +785,8 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
             } else if (auto ArgAttr = dyn_cast<LLVMARGAttr>(Attr)) {
                 AttributeAndValue = ArgAttr->getAttrName().split('=');
                 Index = llvm::AttributeList::FirstArgIndex + ArgAttr->getParamIndex();
+                if (sr1 && Index>=1) Index++;
+                if (sr0) Index++;
             } else if (auto ArgAttr = dyn_cast<LLVMFNAttr>(Attr)) {
                 AttributeAndValue = ArgAttr->getAttrName().split('=');
                 Index = -1;

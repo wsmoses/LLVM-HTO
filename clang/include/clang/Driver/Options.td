@@ -447,6 +447,8 @@ def : Flag<["-"], "fno-ident">, Group<f_Group>, Alias<Qn>, Flags<[CC1Option]>;
 def Qunused_arguments : Flag<["-"], "Qunused-arguments">, Flags<[DriverOption, CoreOption]>,
   HelpText<"Don't emit warning for unused driver arguments">;
 def Q : Flag<["-"], "Q">, IgnoredGCCCompat;
+def Rannotation : Joined<["-"], "Rannotation">, Group<R_value_Group>, Flags<[CC1Option]>,
+  HelpText<"Report derived annotations">;
 def Rpass_EQ : Joined<["-"], "Rpass=">, Group<R_value_Group>, Flags<[CC1Option]>,
   HelpText<"Report transformations performed by optimization passes whose "
            "name matches the given POSIX regular expression">;
@@ -2111,6 +2113,8 @@ def imacros : JoinedOrSeparate<["-", "--"], "imacros">, Group<clang_i_Group>, Fl
 def image__base : Separate<["-"], "image_base">;
 def include_ : JoinedOrSeparate<["-", "--"], "include">, Group<clang_i_Group>, EnumName<"include">,
     MetaVarName<"<file>">, HelpText<"Include file before parsing">, Flags<[CC1Option]>;
+def postinclude_ : JoinedOrSeparate<["-", "--"], "postinclude">, Group<clang_i_Group>, EnumName<"postinclude">,
+    MetaVarName<"<file>">, HelpText<"Include file after all source">, Flags<[CC1Option]>;
 def include_pch : Separate<["-"], "include-pch">, Group<clang_i_Group>, Flags<[CC1Option]>,
   HelpText<"Include precompiled header file">, MetaVarName<"<file>">;
 def relocatable_pch : Flag<["-", "--"], "relocatable-pch">, Flags<[CC1Option]>,

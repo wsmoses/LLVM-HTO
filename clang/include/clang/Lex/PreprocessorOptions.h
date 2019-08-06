@@ -76,6 +76,9 @@ public:
   /// The implicit PCH included at the start of the translation unit, or empty.
   std::string ImplicitPCHInclude;
 
+  /// Headers that will be converted to post includes.
+  std::vector<std::string> PostIncludes;
+  
   /// Headers that will be converted to chained PCHs in memory.
   std::vector<std::string> ChainedIncludes;
 
@@ -221,6 +224,7 @@ public:
     Includes.clear();
     MacroIncludes.clear();
     ChainedIncludes.clear();
+    PostIncludes.clear();
     DumpDeserializedPCHDecls = false;
     ImplicitPCHInclude.clear();
     SingleFileParseMode = false;

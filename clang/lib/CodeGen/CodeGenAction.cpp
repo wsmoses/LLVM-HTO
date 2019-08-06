@@ -781,6 +781,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   // Optimization analysis remarks are active if the pass name is set to
   // llvm::DiagnosticInfo::AlwasyPrint or if the -Rpass-analysis flag has a
   // regular expression that matches the name of the pass name in \p D.
+  if (!CodeGenOpts.OptimizationRemarkAnnotation) return;
 
   StringRef Filename;
   unsigned Line, Column;
@@ -795,7 +796,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   GlobalDecl Decl;
   auto foo = Gen->CGM().lookupRepresentativeDecl(D.getFunction().getName(), Decl);
   if (!Decl.getDecl()) {
-        llvm::errs() << "!!!couldn't lookup decl\n";
+        llvm::errs() << "!!!couldn't lookup decl " << D.getFunction().getName() << "\n";
              return;
   }
   
@@ -810,15 +811,50 @@ void BackendConsumer::OptimizationRemarkHandler(
   outfile.open("/tmp/annotations.h", std::ios_base::app);
   //outfile << D.getMsg() << " " << *fd << "\n";
   //
-  StringRef bd = Loc.getBufferData();
+  FullSourceLoc startloc(fd->getOuterLocStart(), Context->getSourceManager());
+  StringRef bd = startloc.getBufferData();
     
-  auto dstring = bd.substr( 
-          FullSourceLoc(fd->getOuterLocStart(), Context->getSourceManager()).getFileOffset());
+  auto dstring = bd.substr(startloc.getFileOffset());
   auto pos = dstring.find(';');
   auto pos2 = dstring.find('{');
   if (pos == StringRef::npos || (pos2 != StringRef::npos && pos2 < pos) )
       pos = pos2;
   dstring = dstring.substr(0, pos);
+  auto handleType = [&](clang::QualType qt) {
+      const clang::Type* ot = qt.getTypePtr();
+        while(1) {
+            if(const auto at = dyn_cast<ArrayType>(ot)) {
+                qt = at->getElementType();
+                ot = qt.getTypePtr();
+            } else if(const auto pt = dyn_cast<PointerType>(ot)) {
+                qt = pt->getPointeeType();
+                ot = qt.getTypePtr();
+            } else if(const auto rt = dyn_cast<ReferenceType>(ot)) {
+                qt = rt->getPointeeType();
+                ot = qt.getTypePtr();
+            } else {
+                break;
+            }
+        }
+      auto str = clang::QualType(ot, 0).getAsString();
+    if (ot->isBuiltinType()) {
+      ot->dump();
+    }
+    else if (ot->isStructureType()) {
+        llvm::errs() << "struct " << str << ";\n";
+        outfile << "struct " << str << ";\n";
+    } else {
+      ot->dump();
+        llvm::errs() << "nonstruct " << str << ";\n";
+    }
+        
+  };
+
+  handleType(fd->getReturnType());
+  for(auto p : fd->parameters()) {
+      clang::QualType qt = p->getOriginalType();
+      handleType(qt);
+  }
   llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n" << dstring << ";\n";
   
   outfile << "__attribute__(( " << D.getMsg() << " ))\n" << dstring.str () << ";\n";

@@ -1371,6 +1371,13 @@ static bool ParseCodeGenArgs(CodeGenOptions &Opts, ArgList &Args, InputKind IK,
     NeedLocTracking = true;
   }
 
+  if (Arg *A = Args.getLastArg(OPT_Rannotation)) {
+    Opts.OptimizationRemarkAnnotation = true;
+    NeedLocTracking = true;
+  } else { 
+    Opts.OptimizationRemarkAnnotation = false;
+  }
+
   if (Arg *A = Args.getLastArg(OPT_Rpass_EQ)) {
     Opts.OptimizationRemarkPattern =
         GenerateOptimizationRemarkRegex(Diags, Args, A);
@@ -3589,6 +3596,10 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   for (const auto *A : Args.filtered(OPT_include))
     Opts.Includes.emplace_back(A->getValue());
 
+  // Add the ordered list of -postincludes.
+  for (const auto *A : Args.filtered(OPT_postinclude))
+    Opts.PostIncludes.emplace_back(A->getValue());
+  
   for (const auto *A : Args.filtered(OPT_chain_include))
     Opts.ChainedIncludes.emplace_back(A->getValue());
 
