@@ -2151,8 +2151,8 @@ void CodeGenModule::ConstructAttributeList(
   }
   
   if (TargetDecl) {
-    bool sr0 = 0 >= ArgAttrs.size() && ArgAttrs[0].hasAttribute(llvm::Attribute::StructRet);
-    auto sr1 = 1 >= ArgAttrs.size() && ArgAttrs[1].hasAttribute(llvm::Attribute::StructRet);
+    bool sr0 = 0 < ArgAttrs.size() && ArgAttrs[0].hasAttribute(llvm::Attribute::StructRet);
+    auto sr1 = 1 < ArgAttrs.size() && ArgAttrs[1].hasAttribute(llvm::Attribute::StructRet);
     for(auto Attr: TargetDecl->attrs()) {
         if (isa<LLVMARGAttr>(Attr) || isa<LLVMRETAttr>(Attr) || isa<LLVMFNAttr>(Attr)) {
             std::pair<StringRef, StringRef> AttributeAndValue;
@@ -2175,19 +2175,24 @@ void CodeGenModule::ConstructAttributeList(
             if (AttrKind != llvm::Attribute::None) {
                 assert(AttributeAndValue.second.size() == 0 && "Enum Attribute cannot have value");
                 if (Index == -1) {
-                  FuncAttrs =FuncAttrs.addAttribute(getLLVMContext(), AttrKind);
+                  FuncAttrs.addAttribute(AttrKind);
                 } else if (Index == llvm::AttributeList::ReturnIndex) {
-                  RetAttrs = RetAttrs.addAttribute(getLLVMContext(), AttrKind);
+                  RetAttrs.addAttribute(AttrKind);
                 } else {
-                  ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] = ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttribute(getLLVMContext(), AttrKind);
+                  assert(Index - llvm::AttributeList::FirstArgIndex < ArgAttrs.size());
+                  assert(Index - llvm::AttributeList::FirstArgIndex >= 0);
+                  ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] =
+                    ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttribute(getLLVMContext(), AttrKind);
                 }
             }
             else {
                 if (Index == -1) {
-                  FuncAttrs = FuncAttrs.addAttribute(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
+                  FuncAttrs.addAttribute(AttributeAndValue.first, AttributeAndValue.second);
                 } else if (Index == llvm::AttributeList::ReturnIndex) {
-                  RetAttrs =RetAttrs.addAttribute(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
+                  RetAttrs.addAttribute(AttributeAndValue.first, AttributeAndValue.second);
                 } else {
+                  assert(Index - llvm::AttributeList::FirstArgIndex < ArgAttrs.size());
+                  assert(Index - llvm::AttributeList::FirstArgIndex >= 0);
                   ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] = ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttribute(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
                 }
             }

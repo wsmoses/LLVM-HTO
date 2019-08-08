@@ -776,6 +776,11 @@ void BackendConsumer::OptimizationRemarkHandler(
 
 #include "clang/Sema/Lookup.h"
 #include <fstream>
+
+static cl::opt<std::string> hto_file(
+            "hto_file", cl::init("/tmp/annotations.h"), cl::Hidden,
+                cl::desc("File to dump annotations into"));
+
 void BackendConsumer::OptimizationRemarkHandler(
     const llvm::OptimizationRemarkAnnotation &D) {
   // Optimization analysis remarks are active if the pass name is set to
@@ -808,9 +813,113 @@ void BackendConsumer::OptimizationRemarkHandler(
   //fd->dump();
   std::ofstream outfile;
 
-  outfile.open("/tmp/annotations.h", std::ios_base::app);
+  outfile.open(hto_file, std::ios_base::app);
   //outfile << D.getMsg() << " " << *fd << "\n";
   //
+  std::function<std::string(clang::QualType)> handleType = [&](clang::QualType qt) -> std::string {
+      const clang::Type* ot = qt.getTypePtr();
+
+      std::string ending = "";
+      if (qt.isLocalConstQualified())
+          ending += " const";
+      if (qt.isLocalRestrictQualified())
+          ending += " restrict";
+      if (qt.isLocalVolatileQualified())
+          ending += " volatile";
+       
+      if(const auto at = dyn_cast<ArrayType>(ot)) {
+            qt = at->getElementType();
+            ot = qt.getTypePtr();
+            return handleType(qt) + "*" + ending;
+      } else if(const auto pt = dyn_cast<PointerType>(ot)) {
+            qt = pt->getPointeeType();
+            ot = qt.getTypePtr();
+            return handleType(qt) + "*" + ending;
+      } else if(const auto rt = dyn_cast<ReferenceType>(ot)) {
+            qt = rt->getPointeeType();
+            ot = qt.getTypePtr();
+            return handleType(qt) + "&" + ending;
+      } else if(const auto bt = dyn_cast<BuiltinType>(ot)) {
+            auto str = clang::QualType(ot, 0).getAsString();
+            return str + ending;
+      } else if(const auto et = dyn_cast<EnumType>(ot)) {
+          return handleType(et->getDecl()->getIntegerType()) + ending;
+          /*
+          llvm::errs() << "handling enum ";
+          et->desugar()->dump();
+          auto str2 = et->getDecl()->getName().str();
+          if (str2.size() == 0) {
+            assert(0 && "exitbar");
+            exit(1);
+          }
+          llvm::errs() << "enum " << str2 << ";\n";
+          outfile << "enum " << str2 << ";\n";
+          return "enum " + str2;
+          */
+      } else if(const auto et = dyn_cast<RecordType>(ot)) {
+          auto dcl = et->getDecl();
+          std::string pre = "";
+          switch(dcl->getTagKind()) {
+            case TTK_Struct: pre = "struct "; break;
+            case TTK_Class: pre = "class "; break;
+            case TTK_Union: pre = "union "; break;
+            case TTK_Enum: pre = "enum "; break;
+            default: assert(0 && "err"); exit(1);
+          }
+          auto str2 = dcl->getName().str();
+          if (str2.size() == 0) {
+            llvm::errs() << "Illegal -- please give all structs names\n";
+            FullSourceLoc startloc(dcl->getOuterLocStart(), Context->getSourceManager());
+            llvm::errs() << "specifically at " << startloc << "\n";
+            assert(0 && "bad");
+            exit(1);
+            /*
+            pre = "";
+            FullSourceLoc startloc(dcl->getOuterLocStart(), Context->getSourceManager());
+            FullSourceLoc endloc(dcl->getEndLoc(), Context->getSourceManager());
+            StringRef bd = startloc.getBufferData();
+            auto dstring = bd.substr(startloc.getFileOffset(), endloc.getFileOffset() - startloc.getFileOffset());
+            str2 = dstring;
+            */
+            str2 = "struct { ";
+            for(auto f : et->getDecl()->fields()) {
+                str2 = str2 + handleType(f->getType()) + " " + f->getName().str() + "; ";
+            }
+            return str2 + "}" + ending;
+          }
+          llvm::errs() << pre << str2 << ";\n";
+          outfile << pre << str2 << ";\n";
+          return pre + str2 + ending;
+      } else if(const auto tt = dyn_cast<TypedefType>(ot)) {
+            qt = tt->desugar();
+            ot = qt.getTypePtr();
+            return handleType(qt) + ending;
+      } else if(const auto tt = dyn_cast<ElaboratedType>(ot)) {
+            qt = tt->desugar();
+            ot = qt.getTypePtr();
+            return handleType(qt) + ending;
+      } else {
+          ot->dump();
+          exit(1);
+      }
+      /*
+    if (ot->isBuiltinType()) {
+        return str;
+        //ot->dump();
+    }
+    else if (ot->isStructureType()) {
+        llvm::errs() << "struct " << str << ";\n";
+        outfile << "struct " << str << ";\n";
+        return "struct " + str;
+    } else {
+        exit(1);
+      ot->dump();
+        llvm::errs() << "nonstruct " << str << ";\n";
+    }
+       */ 
+  };
+
+  /*
   FullSourceLoc startloc(fd->getOuterLocStart(), Context->getSourceManager());
   StringRef bd = startloc.getBufferData();
     
@@ -820,44 +929,34 @@ void BackendConsumer::OptimizationRemarkHandler(
   if (pos == StringRef::npos || (pos2 != StringRef::npos && pos2 < pos) )
       pos = pos2;
   dstring = dstring.substr(0, pos);
-  auto handleType = [&](clang::QualType qt) {
-      const clang::Type* ot = qt.getTypePtr();
-        while(1) {
-            if(const auto at = dyn_cast<ArrayType>(ot)) {
-                qt = at->getElementType();
-                ot = qt.getTypePtr();
-            } else if(const auto pt = dyn_cast<PointerType>(ot)) {
-                qt = pt->getPointeeType();
-                ot = qt.getTypePtr();
-            } else if(const auto rt = dyn_cast<ReferenceType>(ot)) {
-                qt = rt->getPointeeType();
-                ot = qt.getTypePtr();
-            } else {
-                break;
-            }
-        }
-      auto str = clang::QualType(ot, 0).getAsString();
-    if (ot->isBuiltinType()) {
-      ot->dump();
-    }
-    else if (ot->isStructureType()) {
-        llvm::errs() << "struct " << str << ";\n";
-        outfile << "struct " << str << ";\n";
-    } else {
-      ot->dump();
-        llvm::errs() << "nonstruct " << str << ";\n";
-    }
-        
-  };
-
-  handleType(fd->getReturnType());
+  */
+  
+  auto rettype = handleType(fd->getReturnType());
+  std::vector<std::string> args;
   for(auto p : fd->parameters()) {
       clang::QualType qt = p->getOriginalType();
-      handleType(qt);
+      args.push_back(handleType(qt));
   }
-  llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n" << dstring << ";\n";
+  llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
+  outfile << "__attribute__(( " << D.getMsg() << " ))\n";
   
-  outfile << "__attribute__(( " << D.getMsg() << " ))\n" << dstring.str () << ";\n";
+  llvm::errs() << rettype << " " << fd->getName().str() << "(";
+  outfile << rettype << " " << fd->getName().str() << "(";
+  bool comma = false;
+  for(auto arg : args) {
+    if (comma) {
+        llvm::errs() << ", ";
+        outfile << ", ";
+    }
+    comma = true;
+    llvm::errs() << arg;
+    outfile << arg;
+  }
+  llvm::errs() << ");\n";
+  outfile << ");\n";
+  
+  //<< dstring << ";\n";
+  //<< dstring.str () << ";\n";
   outfile.close();
 
   /*
