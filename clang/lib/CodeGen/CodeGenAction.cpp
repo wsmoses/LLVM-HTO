@@ -864,13 +864,13 @@ void BackendConsumer::OptimizationRemarkHandler(
             case TTK_Class: pre = "class "; break;
             case TTK_Union: pre = "union "; break;
             case TTK_Enum: pre = "enum "; break;
-            default: assert(0 && "err"); exit(1);
+            default: llvm::errs() << "unknown struct tag type\n"; dcl->dump(); assert(0 && "err"); exit(1);
           }
           auto str2 = dcl->getName().str();
           if (str2.size() == 0) {
             llvm::errs() << "Illegal -- please give all structs names\n";
             FullSourceLoc startloc(dcl->getOuterLocStart(), Context->getSourceManager());
-            llvm::errs() << "specifically at " << startloc << "\n";
+            llvm::errs() << "specifically at file " << startloc.getFileEntry()->getName() << " line " << startloc.getLineNumber() << " col " << startloc.getColumnNumber() << "\n";
             assert(0 && "bad");
             exit(1);
             /*
@@ -898,7 +898,13 @@ void BackendConsumer::OptimizationRemarkHandler(
             qt = tt->desugar();
             ot = qt.getTypePtr();
             return handleType(qt) + ending;
+      } else if(const auto tt = dyn_cast<ComplexType>(ot)) {
+            qt = tt->getElementType();
+            ot = qt.getTypePtr();
+            return "_Complex " + handleType(qt) + ending;
+            //return handleType(qt) + " complex " + ending;
       } else {
+          llvm::errs() << "unknown type to handle:\n";
           ot->dump();
           exit(1);
       }
