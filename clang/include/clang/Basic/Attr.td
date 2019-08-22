@@ -1794,18 +1794,21 @@ def LLVMFN : InheritableAttr {
   let Spellings = [Clang<"fn_attr">];
   let Args = [StringArgument<"AttrName">];
   let Documentation = [Undocumented];
+  let InheritEvenIfAlreadyPresent = 1;
 }
 
 def LLVMARG : InheritableAttr {
   let Spellings = [Clang<"arg_attr">];
   let Args = [ParamOrParamIdxArgument<"ParamIndex">, StringArgument<"AttrName">];
   let Documentation = [Undocumented];
+  let InheritEvenIfAlreadyPresent = 1;
 }
 
 def LLVMRET : InheritableAttr {
   let Spellings = [Clang<"ret_attr">];
   let Args = [StringArgument<"AttrName">];
   let Documentation = [Undocumented];
+  let InheritEvenIfAlreadyPresent = 1;
 }
 
 def NoReturn : InheritableAttr {
