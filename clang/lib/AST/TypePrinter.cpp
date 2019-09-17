@@ -179,7 +179,6 @@ void TypePrinter::print(const Type *T, Qualifiers Quals, raw_ostream &OS,
     OS << "NULL TYPE";
     return;
   }
-
   SaveAndRestore<bool> PHVal(HasEmptyPlaceHolder, PlaceHolder.empty());
 
   printBefore(T, Quals, OS);
@@ -946,7 +945,7 @@ void TypePrinter::printTypeSpec(NamedDecl *D, raw_ostream &OS) {
   // Compute the full nested-name-specifier for this type.
   // In C, this will always be empty except when the type
   // being printed is anonymous within other Record.
-  if (!Policy.SuppressScope)
+  if (!Policy.SuppressScope || Policy.handleSubType)
     AppendScope(D->getDeclContext(), OS);
 
   IdentifierInfo *II = D->getIdentifier();
@@ -963,7 +962,11 @@ void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                             raw_ostream &OS) {}
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
-  printTypeSpec(T->getDecl(), OS);
+  if (Policy.handleSubType) {
+    printBefore(T->desugar(), OS);
+  } else {
+    printTypeSpec(T->getDecl(), OS);
+  }
 }
 
 void TypePrinter::printMacroQualifiedBefore(const MacroQualifiedType *T,
@@ -981,7 +984,11 @@ void TypePrinter::printMacroQualifiedAfter(const MacroQualifiedType *T,
   printAfter(T->getModifiedType(), OS);
 }
 
-void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {}
+void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {
+  if (Policy.handleSubType) {
+    printAfter(T->desugar(), OS);
+  }
+}
 
 void TypePrinter::printTypeOfExprBefore(const TypeOfExprType *T,
                                         raw_ostream &OS) {
@@ -1148,7 +1155,7 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
 
   // We don't print tags unless this is an elaborated type.
   // In C, we just assume every RecordType is an elaborated type.
-  if (!Policy.SuppressTagKeyword && !D->getTypedefNameForAnonDecl()) {
+  if ( (!Policy.SuppressTagKeyword && !D->getTypedefNameForAnonDecl()) || Policy.handleSubType) {
     HasKindDecoration = true;
     OS << D->getKindName();
     OS << ' ';
@@ -1157,7 +1164,7 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
   // Compute the full nested-name-specifier for this type.
   // In C, this will always be empty except when the type
   // being printed is anonymous within other Record.
-  if (!Policy.SuppressScope)
+  if (!Policy.SuppressScope || Policy.handleSubType)
     AppendScope(D->getDeclContext(), OS);
 
   if (const IdentifierInfo *II = D->getIdentifier())
@@ -1220,16 +1227,27 @@ void TypePrinter::printTag(TagDecl *D, raw_ostream &OS) {
 }
 
 void TypePrinter::printRecordBefore(const RecordType *T, raw_ostream &OS) {
+  if (Policy.handleSubType) {
+    Policy.handleSubType(T);
+  }
   printTag(T->getDecl(), OS);
 }
 
 void TypePrinter::printRecordAfter(const RecordType *T, raw_ostream &OS) {}
 
 void TypePrinter::printEnumBefore(const EnumType *T, raw_ostream &OS) {
-  printTag(T->getDecl(), OS);
+  if (Policy.handleSubType) {
+    printBefore(T->getDecl()->getIntegerType(), OS);
+  } else {
+    printTag(T->getDecl(), OS);
+  }
 }
 
-void TypePrinter::printEnumAfter(const EnumType *T, raw_ostream &OS) {}
+void TypePrinter::printEnumAfter(const EnumType *T, raw_ostream &OS) {
+  if (Policy.handleSubType) {
+    printAfter(T->getDecl()->getIntegerType(), OS);
+  }
+}
 
 void TypePrinter::printTemplateTypeParmBefore(const TemplateTypeParmType *T,
                                               raw_ostream &OS) {
@@ -1286,7 +1304,6 @@ void TypePrinter::printTemplateSpecializationBefore(
                                             raw_ostream &OS) {
   IncludeStrongLifetimeRAII Strong(Policy);
   T->getTemplateName().print(OS, Policy);
-
   printTemplateArgumentList(OS, T->template_arguments(), Policy);
   spaceBeforePlaceHolder(OS);
 }
@@ -1305,6 +1322,11 @@ void TypePrinter::printInjectedClassNameAfter(const InjectedClassNameType *T,
 
 void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
                                         raw_ostream &OS) {
+  if (Policy.handleSubType) {
+    printBefore(T->desugar(), OS);
+    return;
+  }
+
   if (Policy.IncludeTagDefinition && T->getOwnedTagDecl()) {
     TagDecl *OwnedTagDecl = T->getOwnedTagDecl();
     assert(OwnedTagDecl->getTypeForDecl() == T->getNamedType().getTypePtr() &&
@@ -1333,6 +1355,11 @@ void TypePrinter::printElaboratedBefore(const ElaboratedType *T,
 
 void TypePrinter::printElaboratedAfter(const ElaboratedType *T,
                                         raw_ostream &OS) {
+  if (Policy.handleSubType) {
+    printAfter(T->desugar(), OS);
+    return;
+  }
+
   if (Policy.IncludeTagDefinition && T->getOwnedTagDecl())
     return;
   ElaboratedTypePolicyRAII PolicyRAII(Policy);
@@ -1662,14 +1689,25 @@ static const TemplateArgument &getArgument(const TemplateArgumentLoc &A) {
 
 static void printArgument(const TemplateArgument &A, const PrintingPolicy &PP,
                           llvm::raw_ostream &OS) {
+  const TemplateArgument::ArgKind &Kind = A.getKind();
+  if (Kind == TemplateArgument::ArgKind::Type) {
+    if (PP.handleSubType) {
+        (PP.handleSubType)(A.getAsType().getTypePtr());
+    }
+  }
   A.print(PP, OS);
 }
 
 static void printArgument(const TemplateArgumentLoc &A,
                           const PrintingPolicy &PP, llvm::raw_ostream &OS) {
   const TemplateArgument::ArgKind &Kind = A.getArgument().getKind();
-  if (Kind == TemplateArgument::ArgKind::Type)
+  if (Kind == TemplateArgument::ArgKind::Type) {
+    if (PP.handleSubType) {
+        QualType qt = A.getTypeSourceInfo()->getType();
+        (PP.handleSubType)(qt.getTypePtr());
+    }
     return A.getTypeSourceInfo()->getType().print(OS, PP);
+  }
   return A.getArgument().print(PP, OS);
 }
 
