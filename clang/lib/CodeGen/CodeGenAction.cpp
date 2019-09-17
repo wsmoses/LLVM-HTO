@@ -776,6 +776,7 @@ void BackendConsumer::OptimizationRemarkHandler(
 
 #include "clang/Sema/Lookup.h"
 #include <fstream>
+#include "clang/AST/PrettyPrinter.h"
 
 static cl::opt<std::string> hto_file(
             "hto_file", cl::init("/tmp/annotations.h"), cl::Hidden,
@@ -796,7 +797,7 @@ void BackendConsumer::OptimizationRemarkHandler(
 
   std::string Msg;
   raw_string_ostream MsgStream(Msg);
-  MsgStream << D.getMsg(); 
+  MsgStream << D.getMsg();
 
   GlobalDecl Decl;
   auto foo = Gen->CGM().lookupRepresentativeDecl(D.getFunction().getName(), Decl);
@@ -804,131 +805,55 @@ void BackendConsumer::OptimizationRemarkHandler(
         llvm::errs() << "!!!couldn't lookup decl " << D.getFunction().getName() << "\n";
              return;
   }
-  
+
   const FunctionDecl* fd = dyn_cast<FunctionDecl>(Decl.getDecl());
   if (!Decl.getDecl()) {
       llvm::errs() << "!!!couldn't lookup function decl\n";
              return;
   }
   //fd->dump();
-  std::ofstream outfile;
 
-  outfile.open(hto_file, std::ios_base::app);
+  //std::ofstream outfile;
+  //outfile.open(hto_file, std::ios_base::app);
+  std::error_code error;
+  raw_fd_ostream outfile(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
+
   //outfile << D.getMsg() << " " << *fd << "\n";
   //
-  std::function<std::string(clang::QualType)> handleType = [&](clang::QualType qt) -> std::string {
-      const clang::Type* ot = qt.getTypePtr();
+  std::function<void(const clang::Type*)> handleType = [&](const clang::Type* ot)  {
+    llvm::errs() << "handling type "; ot->dump(); llvm::errs() << "\n";
 
-      std::string ending = "";
-      if (qt.isLocalConstQualified())
-          ending += " const";
-      if (qt.isLocalRestrictQualified())
-          ending += " restrict";
-      if (qt.isLocalVolatileQualified())
-          ending += " volatile";
-       
-      if(const auto at = dyn_cast<ArrayType>(ot)) {
-            qt = at->getElementType();
-            ot = qt.getTypePtr();
-            return handleType(qt) + "*" + ending;
-      } else if(const auto pt = dyn_cast<PointerType>(ot)) {
-            qt = pt->getPointeeType();
-            ot = qt.getTypePtr();
-            return handleType(qt) + "*" + ending;
-      } else if(const auto rt = dyn_cast<ReferenceType>(ot)) {
-            qt = rt->getPointeeType();
-            ot = qt.getTypePtr();
-            return handleType(qt) + "&" + ending;
-      } else if(const auto bt = dyn_cast<BuiltinType>(ot)) {
-            auto str = clang::QualType(ot, 0).getAsString();
-            return str + ending;
-      } else if(const auto et = dyn_cast<EnumType>(ot)) {
-          return handleType(et->getDecl()->getIntegerType()) + ending;
-          /*
-          llvm::errs() << "handling enum ";
-          et->desugar()->dump();
-          auto str2 = et->getDecl()->getName().str();
-          if (str2.size() == 0) {
-            assert(0 && "exitbar");
-            exit(1);
-          }
-          llvm::errs() << "enum " << str2 << ";\n";
-          outfile << "enum " << str2 << ";\n";
-          return "enum " + str2;
-          */
-      } else if(const auto et = dyn_cast<RecordType>(ot)) {
-          auto dcl = et->getDecl();
-          std::string pre = "";
-          switch(dcl->getTagKind()) {
-            case TTK_Struct: pre = "struct "; break;
-            case TTK_Class: pre = "class "; break;
-            case TTK_Union: pre = "union "; break;
-            case TTK_Enum: pre = "enum "; break;
-            default: llvm::errs() << "unknown struct tag type\n"; dcl->dump(); assert(0 && "err"); exit(1);
-          }
-          auto str2 = dcl->getName().str();
-          if (str2.size() == 0) {
+    if(const auto et = dyn_cast<RecordType>(ot)) {
+      PrintingPolicy policy(Gen->CGM().getLangOpts());
+      policy.Indentation = 0;
+      policy.SuppressTagKeyword = false;
+      policy.SuppressUnwrittenScope = false;
+      policy.SuppressInitializers = true;
+      policy.IncludeNewlines = false;
+      policy.SuppressScope = false;
+      policy.FullyQualifiedName = true;
+      //policy.handleSubType = handleType;
+      std::string outp;
+      QualType(ot, 0).getAsStringInternal(outp, policy);
+
+        auto dcl = et->getDecl();
+        auto str2 = dcl->getName().str();
+        if (str2.size() == 0) {
             llvm::errs() << "Illegal -- please give all structs names\n";
             FullSourceLoc startloc(dcl->getOuterLocStart(), Context->getSourceManager());
             llvm::errs() << "specifically at file " << startloc.getFileEntry()->getName() << " line " << startloc.getLineNumber() << " col " << startloc.getColumnNumber() << "\n";
             assert(0 && "bad");
             exit(1);
-            /*
-            pre = "";
-            FullSourceLoc startloc(dcl->getOuterLocStart(), Context->getSourceManager());
-            FullSourceLoc endloc(dcl->getEndLoc(), Context->getSourceManager());
-            StringRef bd = startloc.getBufferData();
-            auto dstring = bd.substr(startloc.getFileOffset(), endloc.getFileOffset() - startloc.getFileOffset());
-            str2 = dstring;
-            */
-            str2 = "struct { ";
-            for(auto f : et->getDecl()->fields()) {
-                str2 = str2 + handleType(f->getType()) + " " + f->getName().str() + "; ";
-            }
-            return str2 + "}" + ending;
-          }
-          llvm::errs() << pre << str2 << ";\n";
-          outfile << pre << str2 << ";\n";
-          return pre + str2 + ending;
-      } else if(const auto tt = dyn_cast<TypedefType>(ot)) {
-            qt = tt->desugar();
-            ot = qt.getTypePtr();
-            return handleType(qt) + ending;
-      } else if(const auto tt = dyn_cast<ElaboratedType>(ot)) {
-            qt = tt->desugar();
-            ot = qt.getTypePtr();
-            return handleType(qt) + ending;
-      } else if(const auto tt = dyn_cast<ComplexType>(ot)) {
-            qt = tt->getElementType();
-            ot = qt.getTypePtr();
-            return "_Complex " + handleType(qt) + ending;
-            //return handleType(qt) + " complex " + ending;
-      } else {
-          llvm::errs() << "unknown type to handle:\n";
-          ot->dump();
-          exit(1);
-      }
-      /*
-    if (ot->isBuiltinType()) {
-        return str;
-        //ot->dump();
+        }
+        llvm::errs() << outp << ";\n";
+        outfile << outp << ";\n";
     }
-    else if (ot->isStructureType()) {
-        llvm::errs() << "struct " << str << ";\n";
-        outfile << "struct " << str << ";\n";
-        return "struct " + str;
-    } else {
-        exit(1);
-      ot->dump();
-        llvm::errs() << "nonstruct " << str << ";\n";
-    }
-       */ 
   };
 
   /*
   FullSourceLoc startloc(fd->getOuterLocStart(), Context->getSourceManager());
   StringRef bd = startloc.getBufferData();
-    
+
   auto dstring = bd.substr(startloc.getFileOffset());
   auto pos = dstring.find(';');
   auto pos2 = dstring.find('{');
@@ -936,31 +861,30 @@ void BackendConsumer::OptimizationRemarkHandler(
       pos = pos2;
   dstring = dstring.substr(0, pos);
   */
-  
-  auto rettype = handleType(fd->getReturnType());
-  std::vector<std::string> args;
-  for(auto p : fd->parameters()) {
-      clang::QualType qt = p->getOriginalType();
-      args.push_back(handleType(qt));
-  }
+
+  fd->getReturnType()->dump();
   llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
   outfile << "__attribute__(( " << D.getMsg() << " ))\n";
-  
-  llvm::errs() << rettype << " " << fd->getName().str() << "(";
-  outfile << rettype << " " << fd->getName().str() << "(";
-  bool comma = false;
-  for(auto arg : args) {
-    if (comma) {
-        llvm::errs() << ", ";
-        outfile << ", ";
-    }
-    comma = true;
-    llvm::errs() << arg;
-    outfile << arg;
-  }
-  llvm::errs() << ");\n";
-  outfile << ");\n";
-  
+
+  PrintingPolicy policy(Gen->CGM().getLangOpts());
+  policy.Indentation = 0;
+  policy.SuppressTagKeyword = false;
+  policy.SuppressUnwrittenScope = false;
+  policy.SuppressInitializers = true;
+  policy.IncludeNewlines = false;
+  policy.SuppressScope = false;
+  policy.FullyQualifiedName = true;
+  policy.TerseOutput = true;
+  policy.handleSubType = handleType;
+  std::string outp;
+
+  std::string sstream;
+  raw_string_ostream outstring(sstream);
+  fd->print(outstring, policy, 0, false);
+
+  llvm::errs() << outstring.str() << "\n";
+  outfile << outstring.str() << "\n";
+
   //<< dstring << ";\n";
   //<< dstring.str () << ";\n";
   outfile.close();
@@ -973,7 +897,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   }
   llvm::errs() << "end redecls\n";
   */
-  
+
   /*
   if (Decl.getDecl()->getBeginLoc() != Loc) {
       Decl.getDecl()->getLocation().dump(Context->getSourceManager());

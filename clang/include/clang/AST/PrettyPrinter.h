@@ -22,6 +22,7 @@ class LangOptions;
 class SourceManager;
 class Stmt;
 class TagDecl;
+class Type;
 
 class PrinterHelper {
 public:
@@ -251,6 +252,12 @@ struct PrintingPolicy {
 
   /// Callbacks to use to allow the behavior of printing to be customized.
   const PrintingCallbacks *Callbacks = nullptr;
+  
+  /// When RemapFilePaths is true, this function performs the action.
+  std::function<std::string(StringRef)> remapPath;
+
+  /// When RemapFilePaths is true, this function performs the action.
+  std::function<void(const clang::Type*)> handleSubType;
 };
 
 } // end namespace clang
