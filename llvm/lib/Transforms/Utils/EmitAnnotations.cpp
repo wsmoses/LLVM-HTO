@@ -38,6 +38,7 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
         AttributeList list = F->getAttributes();
         bool prev = false;
         if (F->hasPrivateLinkage() || F->hasInternalLinkage()) return;
+        if (F->getName() == "main") return;
         for(auto a : list.getFnAttributes()) {
             if (prev) annotations << ",";
             prev = true;
