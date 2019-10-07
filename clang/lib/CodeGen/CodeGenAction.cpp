@@ -782,6 +782,21 @@ static cl::opt<std::string> hto_file(
             "hto_file", cl::init("/tmp/annotations.h"), cl::Hidden,
                 cl::desc("File to dump annotations into"));
 
+static cl::opt<std::string> hto_dir(
+            "hto_dir", cl::init(""), cl::Hidden,
+                cl::desc("Directory to dump annotations into"));
+
+void replaceAll( std::string &s, const std::string &search, const std::string &replace ) {
+    for( size_t pos = 0; ; pos += replace.length() ) {
+        // Locate the substring to replace
+        pos = s.find( search, pos );
+        if( pos == std::string::npos ) break;
+        // Replace by erasing and inserting
+        s.erase( pos, search.length() );
+        s.insert( pos, replace );
+    }
+}
+
 void BackendConsumer::OptimizationRemarkHandler(
     const llvm::OptimizationRemarkAnnotation &D) {
   // Optimization analysis remarks are active if the pass name is set to
@@ -794,6 +809,10 @@ void BackendConsumer::OptimizationRemarkHandler(
   bool BadDebugInfo = false;
   FullSourceLoc Loc =
       getBestLocationFromDebugLoc(D, BadDebugInfo, Filename, Line, Column);
+
+  if (BadDebugInfo) {
+    llvm_unreachable("found bad debug info");
+  }
 
   std::string Msg;
   raw_string_ostream MsgStream(Msg);
@@ -816,7 +835,20 @@ void BackendConsumer::OptimizationRemarkHandler(
   //std::ofstream outfile;
   //outfile.open(hto_file, std::ios_base::app);
   std::error_code error;
-  raw_fd_ostream outfile(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
+  raw_fd_ostream *outfile;
+
+  if (hto_dir.size() != 0) {
+    llvm::errs() << " found filename: " << Filename << "\n";
+    auto fullpath = Loc.getFileEntry()->tryGetRealPathName();
+
+    auto newfn = fullpath.substr(0, fullpath.rfind(".")).str() + ".h";
+    replaceAll(newfn, "/", "-");
+    newfn = hto_dir + "/" + newfn;
+    llvm::errs() << " newfn filename: " << newfn << "\n";
+    outfile = new raw_fd_ostream(newfn, error, llvm::sys::fs::OpenFlags::F_Append);
+  } else {
+    outfile = new raw_fd_ostream(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
+  }
 
   //outfile << D.getMsg() << " " << *fd << "\n";
   //
@@ -846,7 +878,7 @@ void BackendConsumer::OptimizationRemarkHandler(
             exit(1);
         }
         llvm::errs() << outp << ";\n";
-        outfile << outp << ";\n";
+        *outfile << outp << ";\n";
     }
   };
 
@@ -864,7 +896,7 @@ void BackendConsumer::OptimizationRemarkHandler(
 
   fd->getReturnType()->dump();
   llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
-  outfile << "__attribute__(( " << D.getMsg() << " ))\n";
+  *outfile << "__attribute__(( " << D.getMsg() << " ))\n";
 
   PrintingPolicy policy(Gen->CGM().getLangOpts());
   policy.Indentation = 0;
@@ -882,13 +914,13 @@ void BackendConsumer::OptimizationRemarkHandler(
   raw_string_ostream outstring(sstream);
   fd->print(outstring, policy, 0, false);
 
-  llvm::errs() << outstring.str() << "\n";
-  outfile << outstring.str() << "\n";
+  llvm::errs() << outstring.str() << ";\n";
+  *outfile << outstring.str() << ";\n";
 
   //<< dstring << ";\n";
   //<< dstring.str () << ";\n";
-  outfile.close();
-
+  outfile->close();
+  delete outfile;
   /*
   llvm::errs() << "begin redecls\n";
 

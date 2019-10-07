@@ -2115,6 +2115,8 @@ def include_ : JoinedOrSeparate<["-", "--"], "include">, Group<clang_i_Group>, E
     MetaVarName<"<file>">, HelpText<"Include file before parsing">, Flags<[CC1Option]>;
 def postinclude_ : JoinedOrSeparate<["-", "--"], "postinclude">, Group<clang_i_Group>, EnumName<"postinclude">,
     MetaVarName<"<file>">, HelpText<"Include file after all source">, Flags<[CC1Option]>;
+def htoinclude_ : JoinedOrSeparate<["-", "--"], "htoinclude">, Group<clang_i_Group>, EnumName<"htoinclude">,
+    MetaVarName<"<file>">, HelpText<"HTO Include file after all source">, Flags<[CC1Option]>;
 def include_pch : Separate<["-"], "include-pch">, Group<clang_i_Group>, Flags<[CC1Option]>,
   HelpText<"Include precompiled header file">, MetaVarName<"<file>">;
 def relocatable_pch : Flag<["-", "--"], "relocatable-pch">, Flags<[CC1Option]>,

@@ -3487,6 +3487,34 @@ static void ParseLangArgs(LangOptions &Opts, ArgList &Args, InputKind IK,
                    /*default=*/false);
 }
 
+#include <vector>
+#include <string>
+#include <dirent.h>
+
+std::vector<std::string> getFilesInDirectory(std::string directory) {
+  DIR* ProcDir;
+
+  ProcDir = opendir(directory.c_str());
+  if (!ProcDir) {
+    llvm::errs() << "directory: " << directory << "\n";
+    llvm_unreachable("illegal importing hto_dir");
+    exit(1);
+  }
+
+  std::vector<std::string> found;
+  // Walk the /proc tree looking for the oprofile daemon
+  struct dirent* Entry;
+  while (0 != (Entry = readdir(ProcDir))) {
+    if (Entry->d_type == DT_REG) {
+      found.emplace_back(Entry->d_name);
+    }
+  }
+
+  // We've looked through all the files and didn't find the daemon
+  closedir(ProcDir);
+  return found;
+}
+
 static bool isStrictlyPreprocessorAction(frontend::ActionKind Action) {
   switch (Action) {
   case frontend::ASTDeclList:
@@ -3599,6 +3627,18 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
   // Add the ordered list of -postincludes.
   for (const auto *A : Args.filtered(OPT_postinclude))
     Opts.PostIncludes.emplace_back(A->getValue());
+
+  // Add the ordered list of -htoincludes.
+  for (const auto *A : Args.filtered(OPT_htoinclude)) {
+    auto dir = std::string(A->getValue());
+    if (dir.size() > 0 && dir[0] == '=') dir = dir.substr(1);
+    //llvm::errs() << "searching in dir: " << dir << "\n";
+    for (const auto B : getFilesInDirectory(dir)) {
+      std::string file = dir + "/" + B;
+      llvm::errs() << "found file to htoinclude: " << file << "\n";
+      Opts.Includes.emplace_back(file);
+    }
+  }
   
   for (const auto *A : Args.filtered(OPT_chain_include))
     Opts.ChainedIncludes.emplace_back(A->getValue());
