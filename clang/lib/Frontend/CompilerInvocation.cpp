@@ -3635,7 +3635,7 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
     //llvm::errs() << "searching in dir: " << dir << "\n";
     for (const auto B : getFilesInDirectory(dir)) {
       std::string file = dir + "/" + B;
-      llvm::errs() << "found file to htoinclude: " << file << "\n";
+      //llvm::errs() << "found file to htoinclude: " << file << "\n";
       Opts.Includes.emplace_back(file);
     }
   }

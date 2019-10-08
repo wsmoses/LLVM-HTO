@@ -656,6 +656,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
 
   if (const FunctionType *AFT = Ty->getAs<FunctionType>()) {
     const FunctionProtoType *FT = nullptr;
+
     if (D->hasWrittenPrototype())
       FT = dyn_cast<FunctionProtoType>(AFT);
 
@@ -676,7 +677,14 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       for (unsigned i = 0, e = D->getNumParams(); i != e; ++i) {
         if (i)
           Proto += ", ";
-        Proto += D->getParamDecl(i)->getNameAsString();
+
+        if (Policy.handleSubType) {
+          llvm::raw_string_ostream POut(Proto);
+          DeclPrinter ParamPrinter(POut, SubPolicy, Context, Indentation);
+          ParamPrinter.VisitParmVarDecl(D->getParamDecl(i));
+        } else {
+          Proto += D->getParamDecl(i)->getNameAsString();
+        }
       }
     }
 

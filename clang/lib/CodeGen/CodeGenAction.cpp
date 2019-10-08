@@ -797,6 +797,8 @@ void replaceAll( std::string &s, const std::string &search, const std::string &r
     }
 }
 
+#include <cstdlib>
+
 void BackendConsumer::OptimizationRemarkHandler(
     const llvm::OptimizationRemarkAnnotation &D) {
   // Optimization analysis remarks are active if the pass name is set to
@@ -804,6 +806,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   // regular expression that matches the name of the pass name in \p D.
   if (!CodeGenOpts.OptimizationRemarkAnnotation) return;
 
+  /*
   StringRef Filename;
   unsigned Line, Column;
   bool BadDebugInfo = false;
@@ -813,6 +816,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   if (BadDebugInfo) {
     llvm_unreachable("found bad debug info");
   }
+  */
 
   std::string Msg;
   raw_string_ostream MsgStream(Msg);
@@ -838,13 +842,28 @@ void BackendConsumer::OptimizationRemarkHandler(
   raw_fd_ostream *outfile;
 
   if (hto_dir.size() != 0) {
-    llvm::errs() << " found filename: " << Filename << "\n";
-    auto fullpath = Loc.getFileEntry()->tryGetRealPathName();
+    PresumedLoc PLoc = Context->getSourceManager().getPresumedLoc(fd->getBeginLoc());
+    if (PLoc.isInvalid()) {
+        fd->dump();
+    }
+    assert(!PLoc.isInvalid());
 
-    auto newfn = fullpath.substr(0, fullpath.rfind(".")).str() + ".h";
+    auto nam = PLoc.getFilename();
+    SmallVector< char, 10 > outp;
+    std::string name;
+    if (Context->getSourceManager().getFileManager().getVirtualFileSystem().getRealPath(nam, outp)) {
+        name = std::string("nopath/") + std::string(nam);
+    } else {
+        //fd->dump();
+        //llvm::errs() << "prename: " << nam << "\n";
+        //llvm_unreachable("cannot get real path");
+        name = std::string(outp.data(), outp.size());
+    }
+
+    std::string newfn = name.substr(0, name.rfind(".")) + ".h";
     replaceAll(newfn, "/", "-");
     newfn = hto_dir + "/" + newfn;
-    llvm::errs() << " newfn filename: " << newfn << "\n";
+    //llvm::errs() << " newfn filename: " << newfn << "\n";
     outfile = new raw_fd_ostream(newfn, error, llvm::sys::fs::OpenFlags::F_Append);
   } else {
     outfile = new raw_fd_ostream(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
@@ -852,8 +871,29 @@ void BackendConsumer::OptimizationRemarkHandler(
 
   //outfile << D.getMsg() << " " << *fd << "\n";
   //
-  std::function<void(const clang::Type*)> handleType = [&](const clang::Type* ot)  {
-    llvm::errs() << "handling type "; ot->dump(); llvm::errs() << "\n";
+  std::function<void(const clang::Type*)> handleType;
+  std::function<void(std::string name, QualType)> handleTypedef = [&](std::string name, QualType qt)  {
+    //llvm::errs() << "handling type "; ot->dump(); llvm::errs() << "\n";
+      
+    PrintingPolicy policy(Gen->CGM().getLangOpts());
+      policy.Indentation = 0;
+      policy.SuppressTagKeyword = false;
+      policy.SuppressUnwrittenScope = false;
+      policy.SuppressInitializers = true;
+      policy.IncludeNewlines = false;
+      policy.SuppressScope = false;
+      policy.FullyQualifiedName = true;
+      policy.handleSubType = handleType;
+      policy.handleTypedef = handleTypedef;
+
+      std::string output;
+      raw_string_ostream ostr(output);
+      qt.print(ostr, policy, name, 0);
+      *outfile << "typedef " << ostr.str() << ";\n";
+  };
+
+  handleType = [&](const clang::Type* ot)  {
+    //llvm::errs() << "handling type "; ot->dump(); llvm::errs() << "\n";
 
     if(const auto et = dyn_cast<RecordType>(ot)) {
       PrintingPolicy policy(Gen->CGM().getLangOpts());
@@ -864,6 +904,7 @@ void BackendConsumer::OptimizationRemarkHandler(
       policy.IncludeNewlines = false;
       policy.SuppressScope = false;
       policy.FullyQualifiedName = true;
+      policy.handleTypedef = handleTypedef;
       //policy.handleSubType = handleType;
       std::string outp;
       QualType(ot, 0).getAsStringInternal(outp, policy);
@@ -877,7 +918,7 @@ void BackendConsumer::OptimizationRemarkHandler(
             assert(0 && "bad");
             exit(1);
         }
-        llvm::errs() << outp << ";\n";
+        //llvm::errs() << outp << ";\n";
         *outfile << outp << ";\n";
     }
   };
@@ -894,9 +935,6 @@ void BackendConsumer::OptimizationRemarkHandler(
   dstring = dstring.substr(0, pos);
   */
 
-  fd->getReturnType()->dump();
-  llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
-  *outfile << "__attribute__(( " << D.getMsg() << " ))\n";
 
   PrintingPolicy policy(Gen->CGM().getLangOpts());
   policy.Indentation = 0;
@@ -908,13 +946,17 @@ void BackendConsumer::OptimizationRemarkHandler(
   policy.FullyQualifiedName = true;
   policy.TerseOutput = true;
   policy.handleSubType = handleType;
+  policy.handleTypedef = handleTypedef;
   std::string outp;
 
   std::string sstream;
   raw_string_ostream outstring(sstream);
   fd->print(outstring, policy, 0, false);
 
-  llvm::errs() << outstring.str() << ";\n";
+  //llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
+  *outfile << "__attribute__(( " << D.getMsg() << " ))\n";
+
+  //llvm::errs() << outstring.str() << ";\n";
   *outfile << outstring.str() << ";\n";
 
   //<< dstring << ";\n";
@@ -952,9 +994,10 @@ void BackendConsumer::OptimizationRemarkHandler(
   }
   llvm::errs() << "end res\n";
   */
-  Diags.Report(Loc, diag::remark_fe_backend_optimization_remark_annotation)
-      << MsgStream.str()
-      ;
+  
+  //Diags.Report(Loc, diag::remark_fe_backend_optimization_remark_annotation)
+  //    << MsgStream.str()
+  //    ;
 }
 
 void BackendConsumer::OptimizationRemarkHandler(

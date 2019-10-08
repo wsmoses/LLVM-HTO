@@ -792,7 +792,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                 Index = -1;
             } else assert(0 && "must be llvm ret or arg attribute");
             
-            llvm::errs() << "found attribute " << AttributeAndValue.first << " in codegenfunction\n";
+            //llvm::errs() << "found attribute " << AttributeAndValue.first << " in codegenfunction\n";
             
             llvm::Attribute::AttrKind AttrKind = llvm::Attribute::parseAttrKind(AttributeAndValue.first);
             if (AttrKind != llvm::Attribute::None) {

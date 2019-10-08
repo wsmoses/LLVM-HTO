@@ -1036,8 +1036,11 @@ void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                             raw_ostream &OS) {}
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
-  if (Policy.handleSubType) {
-    printBefore(T->desugar(), OS);
+  if (Policy.handleTypedef) {
+    std::string randomname = "___td_rand_" + std::to_string((size_t)(void*)T) + "_" + std::to_string(rand());
+    OS << randomname;
+    spaceBeforePlaceHolder(OS);
+    (Policy.handleTypedef)(randomname, T->desugar());
   } else {
     printTypeSpec(T->getDecl(), OS);
   }
@@ -1059,9 +1062,13 @@ void TypePrinter::printMacroQualifiedAfter(const MacroQualifiedType *T,
 }
 
 void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {
-  if (Policy.handleSubType) {
-    printAfter(T->desugar(), OS);
+  if (Policy.handleTypedef) {
+      //OS << " ";
   }
+
+  //if (Policy.handleSubType && !Policy.handleTypedef) {
+  //  printAfter(T->desugar(), OS);
+  //}
 }
 
 void TypePrinter::printTypeOfExprBefore(const TypeOfExprType *T,
