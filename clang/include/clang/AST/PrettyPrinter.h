@@ -23,6 +23,7 @@ class SourceManager;
 class Stmt;
 class TagDecl;
 class Type;
+class QualType;
 
 class PrinterHelper {
 public:
@@ -253,6 +254,8 @@ struct PrintingPolicy {
 
   /// When RemapFilePaths is true, this function performs the action.
   std::function<void(const clang::Type*)> handleSubType;
+  /// When RemapFilePaths is true, this function performs the action.
+  std::function<void(std::string, clang::QualType)> handleTypedef;
 };
 
 } // end namespace clang
