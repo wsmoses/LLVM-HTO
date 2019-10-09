@@ -523,17 +523,11 @@ void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T,
   IncludeStrongLifetimeRAII Strong(Policy);
   SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getElementType(), OS);
-  if (Policy.handleSubType) {
-    OS << "*" ;
-  }
 }
 
 void TypePrinter::printIncompleteArrayAfter(const IncompleteArrayType *T,
                                             raw_ostream &OS) {
-  if (Policy.handleSubType) {
-  } else {
-    OS << "[]";
-  }
+  OS << "[]";
   printAfter(T->getElementType(), OS);
 }
 
@@ -542,15 +536,15 @@ void TypePrinter::printVariableArrayBefore(const VariableArrayType *T,
   IncludeStrongLifetimeRAII Strong(Policy);
   SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getElementType(), OS);
-  if (Policy.handleSubType) {
-    OS << "*" ;
-  }
+  //if (Policy.handleSubType) {
+  //  OS << "*" ;
+  //}
 }
 
 void TypePrinter::printVariableArrayAfter(const VariableArrayType *T,
                                           raw_ostream &OS) {
-  if (Policy.handleSubType) {
-  } else {
+  //if (Policy.handleSubType) {
+  //} else {
   OS << '[';
   if (T->getIndexTypeQualifiers().hasQualifiers()) {
     AppendTypeQualList(OS, T->getIndexTypeCVRQualifiers(), Policy.Restrict);
@@ -565,7 +559,7 @@ void TypePrinter::printVariableArrayAfter(const VariableArrayType *T,
   if (T->getSizeExpr())
     T->getSizeExpr()->printPretty(OS, nullptr, Policy);
   OS << ']';
-  }
+  //}
 
   printAfter(T->getElementType(), OS);
 }
