@@ -853,6 +853,8 @@ void BackendConsumer::OptimizationRemarkHandler(
             error = true;
        		return;
        }
+       if (nd->isInline())
+           printstream << "inline ";
 	   printstream << "namespace "<< nd->getName() << " {";
      } else if (const auto *RD = dyn_cast<RecordDecl>(dc)) {
       if (!RD->getIdentifier()) {
@@ -895,6 +897,7 @@ void BackendConsumer::OptimizationRemarkHandler(
       policy.IncludeNewlines = false;
       policy.SuppressScope = false;
       policy.FullyQualifiedName = true;
+      policy.Bool = false;
       policy.handleSubType = handleType;
       policy.handleTypedef = handleTypedef;
 
@@ -904,7 +907,49 @@ void BackendConsumer::OptimizationRemarkHandler(
       printstream << "typedef " << ostr.str() << ";\n";
   };
 
+  SmallPtrSet<const clang::Type*, 4> doneRecords;
   handleType = [&](const clang::Type* ot)  {
+    if (doneRecords.count(ot) > 0) return;
+    doneRecords.insert(ot);
+
+    if (auto tst = dyn_cast<TemplateSpecializationType>(ot)) {
+
+        //if(!isa<RecordType>(ot)) return;
+      
+        std::string output;
+        raw_string_ostream ostr(output);
+      PrintingPolicy policy(Gen->CGM().getLangOpts());
+      policy.Indentation = 0;
+      policy.SuppressTagKeyword = false;
+      policy.SuppressUnwrittenScope = false;
+      policy.SuppressInitializers = true;
+      policy.IncludeNewlines = false;
+      policy.SuppressScope = false;
+      policy.handleSubType = handleType;
+      policy.handleTypedef = handleTypedef;
+      policy.FullyQualifiedName = false;//true;
+        
+      auto dcl = tst->getTemplateName().getAsTemplateDecl();
+      assert(dcl);
+      //for(auto n : *dcl->getTemplateParameters()) {
+      //  n->print(llvm::errs(), policy);
+      //}
+
+      dcl->print(ostr, policy);
+            
+        ContextsTy Contexts;
+        namespaceBefore(Contexts, dcl, printstream, false);
+
+        printstream << ostr.str() << ";";
+      
+        for (const auto dc : llvm::reverse(Contexts)) {
+          printstream << "}; "; 
+        }
+        printstream << "\n";
+
+        return;
+    }
+    
     if(const auto et = dyn_cast<RecordType>(ot)) {
       auto dcl = et->getDecl();
       auto str2 = dcl->getName().str();
@@ -916,16 +961,6 @@ void BackendConsumer::OptimizationRemarkHandler(
             exit(1);
       }
 
-      ContextsTy Contexts;
-      namespaceBefore(Contexts, fd, printstream, false);
-
-      printstream << dcl->getKindName() << " " << dcl->getName() << "; ";
-       
-      for (const auto dc : llvm::reverse(Contexts)) {
-         printstream << "}; "; 
-      }
-      printstream << "\n";
-
       /*
       PrintingPolicy policy(Gen->CGM().getLangOpts());
       policy.Indentation = 0;
@@ -934,11 +969,25 @@ void BackendConsumer::OptimizationRemarkHandler(
       policy.SuppressInitializers = true;
       policy.IncludeNewlines = false;
       policy.SuppressScope = false;
+      policy.handleSubType = handleType;
+      policy.handleTypedef = handleTypedef;
       policy.FullyQualifiedName = false;//true;
       std::string outp;
       QualType(ot, 0).getAsStringInternal(outp, policy);
+      */
 
-        printstream << outp << ";\n";
+      ContextsTy Contexts;
+      namespaceBefore(Contexts, dcl, printstream, false);
+
+      printstream << dcl->getKindName() << " " << dcl->getName() << "; ";
+      //printstream << outp << "; ";
+       
+      for (const auto dc : llvm::reverse(Contexts)) {
+         printstream << "}; "; 
+      }
+      printstream << "\n";
+
+      /*
         */
     }
   };
@@ -952,6 +1001,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   policy.SuppressScope = false;
   policy.FullyQualifiedName = true;
   policy.TerseOutput = true;
+  policy.Bool = false;
   policy.handleSubType = handleType;
   policy.handleTypedef = handleTypedef;
   std::string outp;
@@ -963,6 +1013,10 @@ void BackendConsumer::OptimizationRemarkHandler(
   //llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
   //
   ContextsTy Contexts;
+
+  if (fd->getLanguageLinkage() == clang::LanguageLinkage::CLanguageLinkage ) {
+    printstream << "extern C {\n";
+  }
   namespaceBefore(Contexts, fd, printstream);
 
   printstream << "__attribute__(( " << D.getMsg() << " ))\n";
@@ -974,6 +1028,9 @@ void BackendConsumer::OptimizationRemarkHandler(
      printstream << "}; "; 
   }
   printstream << "\n";
+  if (fd->getLanguageLinkage() == clang::LanguageLinkage::CLanguageLinkage ) {
+    printstream << "}\n";
+  }
 
   if (error) return;
   raw_fd_ostream *outfile;

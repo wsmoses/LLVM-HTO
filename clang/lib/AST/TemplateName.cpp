@@ -223,6 +223,7 @@ bool TemplateName::containsUnexpandedParameterPack() const {
 void
 TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
                     bool SuppressNNS) const {
+
   if (Policy.handleSubType) SuppressNNS = false;
   if (TemplateDecl *Template = Storage.dyn_cast<TemplateDecl *>()) {
     if (Policy.handleSubType) {
@@ -232,6 +233,8 @@ TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
     }
   }
   else if (QualifiedTemplateName *QTN = getAsQualifiedTemplateName()) {
+  if (Policy.handleSubType) {
+  }
     if (!SuppressNNS)
       QTN->getQualifier()->print(OS, Policy);
     if (QTN->hasTemplateKeyword())
@@ -251,7 +254,6 @@ TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
     subst->getReplacement().print(OS, Policy, SuppressNNS);
   } else if (SubstTemplateTemplateParmPackStorage *SubstPack
                                         = getAsSubstTemplateTemplateParmPack()) {
-    //llvm::errs() << "this was a SubstTemplateTemplateParmPackStorage\n";
     //if (Policy.handleSubType) {
     //  SubstPack->getParameterPack()->print(OS, Policy);
     //} else {

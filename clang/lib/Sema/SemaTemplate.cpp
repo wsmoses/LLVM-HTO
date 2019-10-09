@@ -2702,12 +2702,15 @@ bool Sema::CheckTemplateParameterList(TemplateParameterList *NewParams,
     }
 
     if (RedundantDefaultArg) {
+      //temporarily disable to permit template redefinition!
+      if (false) {
       // C++ [temp.param]p12:
       //   A template-parameter shall not be given default arguments
       //   by two different declarations in the same scope.
       Diag(NewDefaultLoc, diag::err_template_param_default_arg_redefinition);
       Diag(OldDefaultLoc, diag::note_template_param_prev_default_arg);
       Invalid = true;
+      }
     } else if (MissingDefaultArg && TPC != TPC_FunctionTemplate) {
       // C++ [temp.param]p11:
       //   If a template-parameter of a class template has a default
