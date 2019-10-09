@@ -220,14 +220,19 @@ bool TemplateName::containsUnexpandedParameterPack() const {
   return getDependence() & TemplateNameDependence::UnexpandedPack;
 }
 
+llvm::SmallPtrSet<const TemplateDecl*, 4> running;
+
 void
 TemplateName::print(raw_ostream &OS, const PrintingPolicy &Policy,
                     bool SuppressNNS) const {
-
   if (Policy.handleSubType) SuppressNNS = false;
   if (TemplateDecl *Template = Storage.dyn_cast<TemplateDecl *>()) {
-    if (Policy.handleSubType) {
+    if (Policy.handleSubType && running.count(Template) == 0) {
+       // llvm::errs() << " considering template of\n";
+       // llvm::errs() << *Template << "\n";
+      running.insert(Template);
       Template->printQualifiedName(OS, Policy);
+      running.erase(Template);
     } else {
       OS << *Template;
     }
