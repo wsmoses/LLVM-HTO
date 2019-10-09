@@ -622,7 +622,9 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   SubPolicy.SuppressSpecifiers = false;
   std::string Proto;
 
-  if (Policy.FullyQualifiedName) {
+  if (Policy.handleSubType) {
+    Proto += D->getNameInfo().getAsString();
+  } else if (Policy.FullyQualifiedName) {
     Proto += D->getQualifiedNameAsString();
   } else {
     if (!Policy.SuppressScope) {
