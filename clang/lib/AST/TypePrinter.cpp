@@ -1103,6 +1103,10 @@ void TypePrinter::printAutoAfter(const AutoType *T, raw_ostream &OS) {
 void TypePrinter::printDeducedTemplateSpecializationBefore(
     const DeducedTemplateSpecializationType *T, raw_ostream &OS) {
   // If the type has been deduced, print the deduced type.
+  if (Policy.handleSubType) {
+      Policy.handleSubType(T);
+  }
+
   if (!T->getDeducedType().isNull()) {
     printBefore(T->getDeducedType(), OS);
   } else {
@@ -1355,6 +1359,9 @@ void TypePrinter::printSubstTemplateTypeParmPackAfter(
 void TypePrinter::printTemplateSpecializationBefore(
                                             const TemplateSpecializationType *T,
                                             raw_ostream &OS) {
+  if (Policy.handleSubType) {
+      Policy.handleSubType(T);
+  }
   IncludeStrongLifetimeRAII Strong(Policy);
   T->getTemplateName().print(OS, Policy);
   printTemplateArgumentList(OS, T->template_arguments(), Policy);
@@ -1452,6 +1459,9 @@ void TypePrinter::printDependentNameAfter(const DependentNameType *T,
 
 void TypePrinter::printDependentTemplateSpecializationBefore(
         const DependentTemplateSpecializationType *T, raw_ostream &OS) {
+  if (Policy.handleSubType) {
+      Policy.handleSubType(T);
+  }
   IncludeStrongLifetimeRAII Strong(Policy);
 
   OS << TypeWithKeyword::getKeywordName(T->getKeyword());
