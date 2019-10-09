@@ -798,6 +798,11 @@ void replaceAll( std::string &s, const std::string &search, const std::string &r
 }
 
 #include <cstdlib>
+#include <map>
+#include <map>
+
+std::map<std::string, SmallPtrSet<const clang::Type*, 4>> doneRecords;
+SmallSet<std::string, 4> addedbool;
 
 void BackendConsumer::OptimizationRemarkHandler(
     const llvm::OptimizationRemarkAnnotation &D) {
@@ -805,12 +810,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   // llvm::DiagnosticInfo::AlwasyPrint or if the -Rpass-analysis flag has a
   // regular expression that matches the name of the pass name in \p D.
   if (!CodeGenOpts.OptimizationRemarkAnnotation) return;
-
-  std::string Msg;
-  {
-  raw_string_ostream MsgStream(Msg);
-  MsgStream << D.getMsg();
-  }
+  
 
   GlobalDecl Decl;
   Gen->CGM().lookupRepresentativeDecl(D.getFunction().getName(), Decl);
@@ -824,22 +824,73 @@ void BackendConsumer::OptimizationRemarkHandler(
       llvm::errs() << "!!!couldn't lookup function decl\n";
              return;
   }
+
+  std::string myfile;
+  if (hto_dir.size() != 0) {
+    PresumedLoc PLoc = Context->getSourceManager().getPresumedLoc(fd->getBeginLoc());
+    if (PLoc.isInvalid()) {
+        fd->dump();
+    }
+    assert(!PLoc.isInvalid());
+
+    auto nam = PLoc.getFilename();
+    SmallVector< char, 10 > outp;
+    std::string name;
+    if (Context->getSourceManager().getFileManager().getVirtualFileSystem().getRealPath(nam, outp)) {
+        name = std::string("nopath/") + std::string(nam);
+    } else {
+        name = std::string(outp.data(), outp.size());
+    }
+
+    std::string newfn = name.substr(0, name.rfind(".")) + ".h";
+    replaceAll(newfn, "/", "-");
+    myfile = hto_dir + "/" + newfn;
+  } else {
+      myfile = hto_file;
+  }
+
+  std::string Msg;
+  {
+  raw_string_ostream MsgStream(Msg);
+  MsgStream << D.getMsg();
+  }
   
   std::string toprint;
   raw_string_ostream printstream(toprint);
 
   using ContextsTy = SmallVector<const DeclContext *, 8>;
   bool error = false;
+  auto hasNamespace = [&](const NamedDecl *fd) {
+   const DeclContext *Ctx = fd->getDeclContext();
+   
+   // Collect named contexts.
+   while (Ctx) {
+     if (isa<NamedDecl>(Ctx))
+       return true;
+     Ctx = Ctx->getParent();
+   }
+   return false;
+  };
+  auto inStdNamespace = [&](const NamedDecl *fd) {
+   const DeclContext *Ctx = fd->getDeclContext();
+   
+   // Collect named contexts.
+   while (Ctx) {
+     if (auto nd = dyn_cast<NamedDecl>(Ctx)) {
+         if (nd->getName() == "std") return true;
+     }
+     Ctx = Ctx->getParent();
+   }
+   return false;
+  };
   auto namespaceBefore = [&](ContextsTy& Contexts, const NamedDecl *fd, raw_ostream &printstream, bool newline = true) {
    const DeclContext *Ctx = fd->getDeclContext();
  
    if (Ctx->isFunctionOrMethod()) {
 	 llvm::errs() << "illegal nested function " << fd->getName() << "\n";
      return;
-   }
+   } 
  
- 
-   // Collect named contexts.
    while (Ctx) {
      if (isa<NamedDecl>(Ctx))
        Contexts.push_back(Ctx);
@@ -853,8 +904,9 @@ void BackendConsumer::OptimizationRemarkHandler(
             error = true;
        		return;
        }
-       if (nd->isInline())
+       if (nd->isInline()) {
            printstream << "inline ";
+       }
 	   printstream << "namespace "<< nd->getName() << " {";
      } else if (const auto *RD = dyn_cast<RecordDecl>(dc)) {
       if (!RD->getIdentifier()) {
@@ -907,10 +959,9 @@ void BackendConsumer::OptimizationRemarkHandler(
       printstream << "typedef " << ostr.str() << ";\n";
   };
 
-  SmallPtrSet<const clang::Type*, 4> doneRecords;
   handleType = [&](const clang::Type* ot)  {
-    if (doneRecords.count(ot) > 0) return;
-    doneRecords.insert(ot);
+    if (doneRecords[myfile].count(ot) > 0) return;
+    doneRecords[myfile].insert(ot);
 
     if (auto tst = dyn_cast<TemplateSpecializationType>(ot)) {
 
@@ -938,6 +989,7 @@ void BackendConsumer::OptimizationRemarkHandler(
       dcl->print(ostr, policy);
             
         ContextsTy Contexts;
+        printstream << "#ifdef __cplusplus\n";
         namespaceBefore(Contexts, dcl, printstream, false);
 
         printstream << ostr.str() << ";";
@@ -946,6 +998,7 @@ void BackendConsumer::OptimizationRemarkHandler(
           printstream << "}; "; 
         }
         printstream << "\n";
+        printstream << "#endif\n";
 
         return;
     }
@@ -977,6 +1030,9 @@ void BackendConsumer::OptimizationRemarkHandler(
       */
 
       ContextsTy Contexts;
+      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
+        printstream << "#ifdef __cplusplus\n";
+      }
       namespaceBefore(Contexts, dcl, printstream, false);
 
       printstream << dcl->getKindName() << " " << dcl->getName() << "; ";
@@ -986,11 +1042,36 @@ void BackendConsumer::OptimizationRemarkHandler(
          printstream << "}; "; 
       }
       printstream << "\n";
+      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
+        printstream << "#endif\n";
+      }
 
       /*
         */
     }
   };
+
+  if (inStdNamespace(fd)) return;
+  
+  std::string fnstring;
+  raw_string_ostream fnstream(fnstring);
+
+  ContextsTy Contexts;
+
+  if (fd->getLanguageLinkage() == clang::LanguageLinkage::CLanguageLinkage ) {
+    fnstream << "#ifdef __cplusplus\n";
+    fnstream << "extern \"C\" {\n";
+    if (!fd->isInExternCContext())
+      fnstream << "#endif\n";
+  } else if (fd->getLanguageLinkage() == clang::LanguageLinkage::CXXLanguageLinkage ) {
+    fnstream << "#ifdef __cplusplus\n";
+  }
+
+
+  namespaceBefore(Contexts, fd, fnstream);
+  if (error) return;
+
+  fnstream << "__attribute__(( " << D.getMsg() << " ))\n";
 
   PrintingPolicy policy(Gen->CGM().getLangOpts());
   policy.Indentation = 0;
@@ -1009,18 +1090,12 @@ void BackendConsumer::OptimizationRemarkHandler(
   std::string sstream;
   raw_string_ostream outstring(sstream);
   fd->print(outstring, policy, 0, false);
+  if (error) return;
 
   //llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
   //
-  ContextsTy Contexts;
 
-  if (fd->getLanguageLinkage() == clang::LanguageLinkage::CLanguageLinkage ) {
-    printstream << "extern C {\n";
-  }
-  namespaceBefore(Contexts, fd, printstream);
-
-  printstream << "__attribute__(( " << D.getMsg() << " ))\n";
-
+  printstream << fnstream.str();
   //llvm::errs() << outstring.str() << ";\n";
   printstream << outstring.str() << ";\n";
    
@@ -1029,47 +1104,30 @@ void BackendConsumer::OptimizationRemarkHandler(
   }
   printstream << "\n";
   if (fd->getLanguageLinkage() == clang::LanguageLinkage::CLanguageLinkage ) {
+    if (!fd->isInExternCContext())
+      printstream << "#ifdef __cplusplus\n";
     printstream << "}\n";
+    printstream << "#endif\n";
+  } else if (fd->getLanguageLinkage() == clang::LanguageLinkage::CXXLanguageLinkage ) {
+    printstream << "#endif\n";
   }
 
   if (error) return;
-  raw_fd_ostream *outfile;
-  if (hto_dir.size() != 0) {
-    PresumedLoc PLoc = Context->getSourceManager().getPresumedLoc(fd->getBeginLoc());
-    if (PLoc.isInvalid()) {
-        fd->dump();
-    }
-    assert(!PLoc.isInvalid());
-
-    auto nam = PLoc.getFilename();
-    SmallVector< char, 10 > outp;
-    std::string name;
-    if (Context->getSourceManager().getFileManager().getVirtualFileSystem().getRealPath(nam, outp)) {
-        name = std::string("nopath/") + std::string(nam);
-    } else {
-        name = std::string(outp.data(), outp.size());
-    }
-
-    std::string newfn = name.substr(0, name.rfind(".")) + ".h";
-    replaceAll(newfn, "/", "-");
-    newfn = hto_dir + "/" + newfn;
-    std::error_code error;
-    outfile = new raw_fd_ostream(newfn, error, llvm::sys::fs::OpenFlags::F_Append);
+  
+  {
+  std::error_code error;
+  raw_fd_ostream outfile(myfile, error, llvm::sys::fs::OpenFlags::F_Append);
 	if (error) {
-		llvm::errs() << "could not open file " << newfn << " because of " << error.message() << "\n";
+		llvm::errs() << "could not open file " << myfile << " because of " << error.message() << "\n";
 		llvm_unreachable("badfile");
-	}
-  } else {
-    std::error_code error;
-    outfile = new raw_fd_ostream(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
-	if (error) {
-		llvm::errs() << "could not open file " << hto_file << " because of " << error.message() << "\n";
-		llvm_unreachable("badfile");
-	}
+    }
+  if (addedbool.count(myfile) == 0) {
+    outfile << "#include <stdbool.h>\n";
+    addedbool.insert(myfile);
   }
-  *outfile << printstream.str();
-  outfile->close();
-  delete outfile;
+  outfile << printstream.str();
+  outfile.close();
+  }
 }
 
 void BackendConsumer::OptimizationRemarkHandler(
