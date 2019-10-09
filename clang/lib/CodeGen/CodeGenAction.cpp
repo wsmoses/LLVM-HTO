@@ -806,24 +806,14 @@ void BackendConsumer::OptimizationRemarkHandler(
   // regular expression that matches the name of the pass name in \p D.
   if (!CodeGenOpts.OptimizationRemarkAnnotation) return;
 
-  /*
-  StringRef Filename;
-  unsigned Line, Column;
-  bool BadDebugInfo = false;
-  FullSourceLoc Loc =
-      getBestLocationFromDebugLoc(D, BadDebugInfo, Filename, Line, Column);
-
-  if (BadDebugInfo) {
-    llvm_unreachable("found bad debug info");
-  }
-  */
-
   std::string Msg;
+  {
   raw_string_ostream MsgStream(Msg);
   MsgStream << D.getMsg();
+  }
 
   GlobalDecl Decl;
-  auto foo = Gen->CGM().lookupRepresentativeDecl(D.getFunction().getName(), Decl);
+  Gen->CGM().lookupRepresentativeDecl(D.getFunction().getName(), Decl);
   if (!Decl.getDecl()) {
         llvm::errs() << "!!!couldn't lookup decl " << D.getFunction().getName() << "\n";
              return;
@@ -834,51 +824,65 @@ void BackendConsumer::OptimizationRemarkHandler(
       llvm::errs() << "!!!couldn't lookup function decl\n";
              return;
   }
-  //fd->dump();
+  
+  std::string toprint;
+  raw_string_ostream printstream(toprint);
 
-  //std::ofstream outfile;
-  //outfile.open(hto_file, std::ios_base::app);
-  std::error_code error;
-  raw_fd_ostream *outfile;
+  using ContextsTy = SmallVector<const DeclContext *, 8>;
+  bool error = false;
+  auto namespaceBefore = [&](ContextsTy& Contexts, const NamedDecl *fd, raw_ostream &printstream, bool newline = true) {
+   const DeclContext *Ctx = fd->getDeclContext();
+ 
+   if (Ctx->isFunctionOrMethod()) {
+	 llvm::errs() << "illegal nested function " << fd->getName() << "\n";
+     return;
+   }
+ 
+ 
+   // Collect named contexts.
+   while (Ctx) {
+     if (isa<NamedDecl>(Ctx))
+       Contexts.push_back(Ctx);
+     Ctx = Ctx->getParent();
+   }
+ 
+   for (const auto dc : llvm::reverse(Contexts)) {
+     if (const auto *nd = dyn_cast<NamespaceDecl>(dc)) {
+       if (nd->isAnonymousNamespace()) {
+	   		llvm::errs() << "illegal anonymous namespace function " << *fd << "\n";
+            error = true;
+       		return;
+       }
+	   printstream << "namespace "<< nd->getName() << " {";
+     } else if (const auto *RD = dyn_cast<RecordDecl>(dc)) {
+      if (!RD->getIdentifier()) {
+          llvm::errs() << "illegal " << RD->getKindName() << " {anon} function " << *fd << "\n";
+          error = true;
+          return;
+      }
+      llvm::errs() << "illegal " << RD->getKindName() << " " << RD->getName() << " function " << *fd << "\n";
+      error = true;
+      return;
+     } else if (const auto *RF = dyn_cast<FunctionDecl>(dc)) {
+      if (!RF->getIdentifier()) {
+          llvm::errs() << "illegal subfn" << *fd << "\n";
+          error = true;
+          return;
+      }
+      llvm::errs() << "illegal subfn in " << RF->getName() << ", " << *fd << "\n";
+      error = true;
+      return;
+     } else {
+	   llvm::errs() << "illegal not namespace function " << *fd << " in " << *nd << "\n";
+       error = true;
+       return;
+     } 
+   }
+   if (newline) {
+     printstream << "\n";
+   }
+  };
 
-  if (hto_dir.size() != 0) {
-    PresumedLoc PLoc = Context->getSourceManager().getPresumedLoc(fd->getBeginLoc());
-    if (PLoc.isInvalid()) {
-        fd->dump();
-    }
-    assert(!PLoc.isInvalid());
-
-    auto nam = PLoc.getFilename();
-    SmallVector< char, 10 > outp;
-    std::string name;
-    if (Context->getSourceManager().getFileManager().getVirtualFileSystem().getRealPath(nam, outp)) {
-        name = std::string("nopath/") + std::string(nam);
-    } else {
-        //fd->dump();
-        //llvm::errs() << "prename: " << nam << "\n";
-        //llvm_unreachable("cannot get real path");
-        name = std::string(outp.data(), outp.size());
-    }
-
-    std::string newfn = name.substr(0, name.rfind(".")) + ".h";
-    replaceAll(newfn, "/", "-");
-    newfn = hto_dir + "/" + newfn;
-    //llvm::errs() << " newfn filename: " << newfn << "\n";
-    outfile = new raw_fd_ostream(newfn, error, llvm::sys::fs::OpenFlags::F_Append);
-	if (error) {
-		llvm::errs() << "could not open file " << newfn << " because of " << error.message() << "\n";
-		llvm_unreachable("badfile");
-	}
-  } else {
-    outfile = new raw_fd_ostream(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
-	if (error) {
-		llvm::errs() << "could not open file " << hto_file << " because of " << error.message() << "\n";
-		llvm_unreachable("badfile");
-	}
-  }
-
-  //outfile << D.getMsg() << " " << *fd << "\n";
-  //
   std::function<void(const clang::Type*)> handleType;
   std::function<void(std::string name, QualType)> handleTypedef = [&](std::string name, QualType qt)  {
     //llvm::errs() << "handling type "; ot->dump(); llvm::errs() << "\n";
@@ -897,13 +901,32 @@ void BackendConsumer::OptimizationRemarkHandler(
       std::string output;
       raw_string_ostream ostr(output);
       qt.print(ostr, policy, name, 0);
-      *outfile << "typedef " << ostr.str() << ";\n";
+      printstream << "typedef " << ostr.str() << ";\n";
   };
 
   handleType = [&](const clang::Type* ot)  {
-    //llvm::errs() << "handling type "; ot->dump(); llvm::errs() << "\n";
-
     if(const auto et = dyn_cast<RecordType>(ot)) {
+      auto dcl = et->getDecl();
+      auto str2 = dcl->getName().str();
+      if (str2.size() == 0) {
+            llvm::errs() << "Illegal -- please give all structs names\n";
+            FullSourceLoc startloc(dcl->getOuterLocStart(), Context->getSourceManager());
+            llvm::errs() << "specifically at file " << startloc.getFileEntry()->getName() << " line " << startloc.getLineNumber() << " col " << startloc.getColumnNumber() << "\n";
+            assert(0 && "bad");
+            exit(1);
+      }
+
+      ContextsTy Contexts;
+      namespaceBefore(Contexts, fd, printstream, false);
+
+      printstream << dcl->getKindName() << " " << dcl->getName() << "; ";
+       
+      for (const auto dc : llvm::reverse(Contexts)) {
+         printstream << "}; "; 
+      }
+      printstream << "\n";
+
+      /*
       PrintingPolicy policy(Gen->CGM().getLangOpts());
       policy.Indentation = 0;
       policy.SuppressTagKeyword = false;
@@ -911,38 +934,14 @@ void BackendConsumer::OptimizationRemarkHandler(
       policy.SuppressInitializers = true;
       policy.IncludeNewlines = false;
       policy.SuppressScope = false;
-      policy.FullyQualifiedName = true;
-      policy.handleTypedef = handleTypedef;
-      //policy.handleSubType = handleType;
+      policy.FullyQualifiedName = false;//true;
       std::string outp;
       QualType(ot, 0).getAsStringInternal(outp, policy);
 
-        auto dcl = et->getDecl();
-        auto str2 = dcl->getName().str();
-        if (str2.size() == 0) {
-            llvm::errs() << "Illegal -- please give all structs names\n";
-            FullSourceLoc startloc(dcl->getOuterLocStart(), Context->getSourceManager());
-            llvm::errs() << "specifically at file " << startloc.getFileEntry()->getName() << " line " << startloc.getLineNumber() << " col " << startloc.getColumnNumber() << "\n";
-            assert(0 && "bad");
-            exit(1);
-        }
-        //llvm::errs() << outp << ";\n";
-        *outfile << outp << ";\n";
+        printstream << outp << ";\n";
+        */
     }
   };
-
-  /*
-  FullSourceLoc startloc(fd->getOuterLocStart(), Context->getSourceManager());
-  StringRef bd = startloc.getBufferData();
-
-  auto dstring = bd.substr(startloc.getFileOffset());
-  auto pos = dstring.find(';');
-  auto pos2 = dstring.find('{');
-  if (pos == StringRef::npos || (pos2 != StringRef::npos && pos2 < pos) )
-      pos = pos2;
-  dstring = dstring.substr(0, pos);
-  */
-
 
   PrintingPolicy policy(Gen->CGM().getLangOpts());
   policy.Indentation = 0;
@@ -963,107 +962,57 @@ void BackendConsumer::OptimizationRemarkHandler(
 
   //llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
   //
-  using ContextsTy = SmallVector<const DeclContext *, 8>;
   ContextsTy Contexts;
-  {
+  namespaceBefore(Contexts, fd, printstream);
 
-   const DeclContext *Ctx = fd->getDeclContext();
- 
-   if (Ctx->isFunctionOrMethod()) {
-	 llvm::errs() << "illegal nested function " << fd->getName() << "\n";
-     return;
-   }
- 
- 
-   // Collect named contexts.
-   while (Ctx) {
-     if (isa<NamedDecl>(Ctx))
-       Contexts.push_back(Ctx);
-     Ctx = Ctx->getParent();
-   }
- 
-   for (const auto dc : llvm::reverse(Contexts)) {
-     if (const auto *nd = dyn_cast<NamespaceDecl>(dc)) {
-       if (nd->isAnonymousNamespace()) {
-	   		  llvm::errs() << "illegal anonymous namespace function " << fd->getName() << "\n";
-       		return;
-       }
-	     *outfile << "namespace "<< nd->getName() << " {";
-     } else if (const auto *RD = dyn_cast<RecordDecl>(dc)) {
-      if (!RD->getIdentifier()) {
-          llvm::errs() << "illegal " << RD->getKindName() << " {anon} function " << *fd << "\n";
-          return;
-      }
-      llvm::errs() << "illegal " << RD->getKindName() << " " << RD->getName() << " function " << *fd << "\n";
-      return;
-     } else if (const auto *RF = dyn_cast<FunctionDecl>(dc)) {
-      if (!RF->getIdentifier()) {
-          llvm::errs() << "illegal subfn" << *fd << "\n";
-          return;
-      }
-      llvm::errs() << "illegal subfn in " << RF->getName() << ", " << *fd << "\n";
-      return;
-     } else {
-	     llvm::errs() << "illegal not namespace function " << *fd << " in " << *nd << "\n";
-       return;
-     } 
-   }
-   *outfile << "\n";
-  }
-
-
-
-
-  *outfile << "__attribute__(( " << D.getMsg() << " ))\n";
+  printstream << "__attribute__(( " << D.getMsg() << " ))\n";
 
   //llvm::errs() << outstring.str() << ";\n";
-  *outfile << outstring.str() << ";\n";
+  printstream << outstring.str() << ";\n";
    
   for (const auto dc : llvm::reverse(Contexts)) {
-     *outfile << "}; "; 
+     printstream << "}; "; 
   }
+  printstream << "\n";
 
-  *outfile << "\n";
+  if (error) return;
+  raw_fd_ostream *outfile;
+  if (hto_dir.size() != 0) {
+    PresumedLoc PLoc = Context->getSourceManager().getPresumedLoc(fd->getBeginLoc());
+    if (PLoc.isInvalid()) {
+        fd->dump();
+    }
+    assert(!PLoc.isInvalid());
 
-  //<< dstring << ";\n";
-  //<< dstring.str () << ";\n";
+    auto nam = PLoc.getFilename();
+    SmallVector< char, 10 > outp;
+    std::string name;
+    if (Context->getSourceManager().getFileManager().getVirtualFileSystem().getRealPath(nam, outp)) {
+        name = std::string("nopath/") + std::string(nam);
+    } else {
+        name = std::string(outp.data(), outp.size());
+    }
+
+    std::string newfn = name.substr(0, name.rfind(".")) + ".h";
+    replaceAll(newfn, "/", "-");
+    newfn = hto_dir + "/" + newfn;
+    std::error_code error;
+    outfile = new raw_fd_ostream(newfn, error, llvm::sys::fs::OpenFlags::F_Append);
+	if (error) {
+		llvm::errs() << "could not open file " << newfn << " because of " << error.message() << "\n";
+		llvm_unreachable("badfile");
+	}
+  } else {
+    std::error_code error;
+    outfile = new raw_fd_ostream(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
+	if (error) {
+		llvm::errs() << "could not open file " << hto_file << " because of " << error.message() << "\n";
+		llvm_unreachable("badfile");
+	}
+  }
+  *outfile << printstream.str();
   outfile->close();
   delete outfile;
-  /*
-  llvm::errs() << "begin redecls\n";
-
-  for(auto a: fd->redecls ()) {
-    a->dump();
-  }
-  llvm::errs() << "end redecls\n";
-  */
-
-  /*
-  if (Decl.getDecl()->getBeginLoc() != Loc) {
-      Decl.getDecl()->getLocation().dump(Context->getSourceManager());
-      Decl.getDecl()->getLocation().dump(Context->getSourceManager());
-      Decl.getDecl()->getLocation().dump(Context->getSourceManager());
-      Loc.dump();//Context->getSourceManager());
-        llvm::errs() << "!!!decl at different source\n";
-             return;
-  }
-  */
-/*
-  LookupResult res(CI->getSema(), fd->getNameInfo(), Sema::LookupNameKind::LookupOrdinaryName, Sema::ForExternalRedeclaration );
-  //LookupResult res(CI->getSema(), fd->getNameInfo(), Sema::LookupNameKind::LookupUsingDeclName, Sema::ForVisibleRedeclaration );
-  Scope* sc = CI->getSema().TUScope;
-  while(sc->getParent()) sc = sc->getParent();
-  CI->getSema().LookupName(res, sc);
-  llvm::errs() << "begin res\n";
-  for(auto a: res) {
-    a->dump();
-  }
-  llvm::errs() << "end res\n";
-  */
-  
-  //Diags.Report(Loc, diag::remark_fe_backend_optimization_remark_annotation)
-  //    << MsgStream.str()
-  //    ;
 }
 
 void BackendConsumer::OptimizationRemarkHandler(
