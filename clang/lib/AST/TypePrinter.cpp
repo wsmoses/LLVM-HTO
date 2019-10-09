@@ -518,11 +518,17 @@ void TypePrinter::printIncompleteArrayBefore(const IncompleteArrayType *T,
   IncludeStrongLifetimeRAII Strong(Policy);
   SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getElementType(), OS);
+  if (Policy.handleSubType) {
+    OS << "*" ;
+  }
 }
 
 void TypePrinter::printIncompleteArrayAfter(const IncompleteArrayType *T,
                                             raw_ostream &OS) {
-  OS << "[]";
+  if (Policy.handleSubType) {
+  } else {
+    OS << "[]";
+  }
   printAfter(T->getElementType(), OS);
 }
 
@@ -531,10 +537,15 @@ void TypePrinter::printVariableArrayBefore(const VariableArrayType *T,
   IncludeStrongLifetimeRAII Strong(Policy);
   SaveAndRestore<bool> NonEmptyPH(HasEmptyPlaceHolder, false);
   printBefore(T->getElementType(), OS);
+  if (Policy.handleSubType) {
+    OS << "*" ;
+  }
 }
 
 void TypePrinter::printVariableArrayAfter(const VariableArrayType *T,
                                           raw_ostream &OS) {
+  if (Policy.handleSubType) {
+  } else {
   OS << '[';
   if (T->getIndexTypeQualifiers().hasQualifiers()) {
     AppendTypeQualList(OS, T->getIndexTypeCVRQualifiers(), Policy.Restrict);
@@ -549,6 +560,7 @@ void TypePrinter::printVariableArrayAfter(const VariableArrayType *T,
   if (T->getSizeExpr())
     T->getSizeExpr()->printPretty(OS, nullptr, Policy);
   OS << ']';
+  }
 
   printAfter(T->getElementType(), OS);
 }
@@ -1036,7 +1048,9 @@ void TypePrinter::printUnresolvedUsingAfter(const UnresolvedUsingType *T,
                                             raw_ostream &OS) {}
 
 void TypePrinter::printTypedefBefore(const TypedefType *T, raw_ostream &OS) {
-  if (Policy.handleTypedef) {
+  if (Policy.handleSubType && !isa<ArrayType>(T->desugar())) {
+    printBefore(T->desugar(), OS);
+  } else if (Policy.handleTypedef) {
     std::string randomname = "___td_rand_" + std::to_string((size_t)(void*)T) + "_" + std::to_string(rand());
     OS << randomname;
     spaceBeforePlaceHolder(OS);
@@ -1062,8 +1076,8 @@ void TypePrinter::printMacroQualifiedAfter(const MacroQualifiedType *T,
 }
 
 void TypePrinter::printTypedefAfter(const TypedefType *T, raw_ostream &OS) {
-  if (Policy.handleTypedef) {
-      //OS << " ";
+  if (Policy.handleSubType && !isa<ArrayType>(T->desugar())) {
+    printAfter(T->desugar(), OS);
   }
 
   //if (Policy.handleSubType && !Policy.handleTypedef) {

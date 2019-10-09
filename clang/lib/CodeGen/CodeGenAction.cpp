@@ -865,8 +865,16 @@ void BackendConsumer::OptimizationRemarkHandler(
     newfn = hto_dir + "/" + newfn;
     //llvm::errs() << " newfn filename: " << newfn << "\n";
     outfile = new raw_fd_ostream(newfn, error, llvm::sys::fs::OpenFlags::F_Append);
+	if (error) {
+		llvm::errs() << "could not open file " << newfn << " because of " << error.message() << "\n";
+		llvm_unreachable("badfile");
+	}
   } else {
     outfile = new raw_fd_ostream(hto_file, error, llvm::sys::fs::OpenFlags::F_Append);
+	if (error) {
+		llvm::errs() << "could not open file " << hto_file << " because of " << error.message() << "\n";
+		llvm_unreachable("badfile");
+	}
   }
 
   //outfile << D.getMsg() << " " << *fd << "\n";
@@ -954,10 +962,68 @@ void BackendConsumer::OptimizationRemarkHandler(
   fd->print(outstring, policy, 0, false);
 
   //llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
+  //
+  using ContextsTy = SmallVector<const DeclContext *, 8>;
+  ContextsTy Contexts;
+  {
+
+   const DeclContext *Ctx = fd->getDeclContext();
+ 
+   if (Ctx->isFunctionOrMethod()) {
+	 llvm::errs() << "illegal nested function " << fd->getName() << "\n";
+     return;
+   }
+ 
+ 
+   // Collect named contexts.
+   while (Ctx) {
+     if (isa<NamedDecl>(Ctx))
+       Contexts.push_back(Ctx);
+     Ctx = Ctx->getParent();
+   }
+ 
+   for (const auto dc : llvm::reverse(Contexts)) {
+     if (const auto *nd = dyn_cast<NamespaceDecl>(dc)) {
+       if (nd->isAnonymousNamespace()) {
+	   		  llvm::errs() << "illegal anonymous namespace function " << fd->getName() << "\n";
+       		return;
+       }
+	     *outfile << "namespace "<< nd->getName() << " {";
+     } else if (const auto *RD = dyn_cast<RecordDecl>(dc)) {
+      if (!RD->getIdentifier()) {
+          llvm::errs() << "illegal " << RD->getKindName() << " {anon} function " << *fd << "\n";
+          return;
+      }
+      llvm::errs() << "illegal " << RD->getKindName() << " " << RD->getName() << " function " << *fd << "\n";
+      return;
+     } else if (const auto *RF = dyn_cast<FunctionDecl>(dc)) {
+      if (!RF->getIdentifier()) {
+          llvm::errs() << "illegal subfn" << *fd << "\n";
+          return;
+      }
+      llvm::errs() << "illegal subfn in " << RF->getName() << ", " << *fd << "\n";
+      return;
+     } else {
+	     llvm::errs() << "illegal not namespace function " << *fd << " in " << *nd << "\n";
+       return;
+     } 
+   }
+   *outfile << "\n";
+  }
+
+
+
+
   *outfile << "__attribute__(( " << D.getMsg() << " ))\n";
 
   //llvm::errs() << outstring.str() << ";\n";
   *outfile << outstring.str() << ";\n";
+   
+  for (const auto dc : llvm::reverse(Contexts)) {
+     *outfile << "}; "; 
+  }
+
+  *outfile << "\n";
 
   //<< dstring << ";\n";
   //<< dstring.str () << ";\n";
