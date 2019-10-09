@@ -112,7 +112,7 @@ namespace {
                StringRef PlaceHolder);
     void print(QualType T, raw_ostream &OS, StringRef PlaceHolder);
 
-    static bool canPrefixQualifiers(const Type *T, bool &NeedARCStrongQualifier);
+    static bool canPrefixQualifiers(const Type *T, bool &NeedARCStrongQualifier, const PrintingPolicy& Policy);
     void spaceBeforePlaceHolder(raw_ostream &OS);
     void printTypeSpec(NamedDecl *D, raw_ostream &OS);
 
@@ -187,7 +187,7 @@ void TypePrinter::print(const Type *T, Qualifiers Quals, raw_ostream &OS,
 }
 
 bool TypePrinter::canPrefixQualifiers(const Type *T,
-                                      bool &NeedARCStrongQualifier) {
+                                      bool &NeedARCStrongQualifier, const PrintingPolicy &Policy) {
   // CanPrefixQualifiers - We prefer to print type qualifiers before the type,
   // so that we get "const int" instead of "int const", but we can't do this if
   // the type is complex.  For example if the type is "int*", we *must* print
@@ -202,11 +202,15 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     TC = Subst->getReplacementType()->getTypeClass();
 
   switch (TC) {
+    case Type::Typedef:
+      if (Policy.handleSubType && !isa<ArrayType>(cast<TypedefType>(T)->desugar())) {
+        return canPrefixQualifiers(cast<TypedefType>(T)->desugar().getTypePtr(), NeedARCStrongQualifier, Policy);
+      }
+
     case Type::Auto:
     case Type::Builtin:
     case Type::Complex:
     case Type::UnresolvedUsing:
-    case Type::Typedef:
     case Type::TypeOfExpr:
     case Type::TypeOf:
     case Type::Decltype:
@@ -214,6 +218,7 @@ bool TypePrinter::canPrefixQualifiers(const Type *T,
     case Type::Record:
     case Type::Enum:
     case Type::Elaborated:
+      //todo consider elaborated
     case Type::TemplateTypeParm:
     case Type::SubstTemplateTypeParmPack:
     case Type::DeducedTemplateSpecialization:
@@ -301,7 +306,7 @@ void TypePrinter::printBefore(const Type *T,Qualifiers Quals, raw_ostream &OS) {
 
   bool CanPrefixQualifiers = false;
   bool NeedARCStrongQualifier = false;
-  CanPrefixQualifiers = canPrefixQualifiers(T, NeedARCStrongQualifier);
+  CanPrefixQualifiers = canPrefixQualifiers(T, NeedARCStrongQualifier, Policy);
 
   if (CanPrefixQualifiers && !Quals.empty()) {
     if (NeedARCStrongQualifier) {
