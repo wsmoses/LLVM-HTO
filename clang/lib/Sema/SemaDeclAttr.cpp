@@ -3745,39 +3745,37 @@ void Sema::AddAlignValueAttr(Decl *D, const AttributeCommonInfo &CI, Expr *E) {
 }
 
 template <typename AttrType>
-static void handleSimpleIntStringAttribute(Sema &S, Decl *D, const ParsedAttr &AL) {
+static void handleSimpleIntStringAttribute(Sema &S, Decl *D, const ParsedAttr &CI) {
   // check the attribute arguments.
-  if (AL.getNumArgs() != 2) {
-    S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
+  if (CI.getNumArgs() != 2) {
+    S.Diag(CI.getLoc(), diag::err_attribute_wrong_number_arguments) << CI << 1;
     return;
   }
 
-  Expr *E = AL.getArgAsExpr(0);
+  //Expr *E = CI.getArgAsExpr(0);
 
   FunctionDecl *FD = D->getAsFunction();
   assert(FD && "Expected a function declaration!");
 
-  int32_t ArgIdx = getParamFromNameOrIndex(S, FD, AL, 0);
+  int32_t ArgIdx = getParamFromNameOrIndex(S, FD, CI, 0);
   StringRef Str;
-  S.checkStringLiteralArgumentAttr(AL, 1, Str);
+  S.checkStringLiteralArgumentAttr(CI, 1, Str);
   
-  D->addAttr(::new (S.Context) AttrType(AL.getRange(), S.Context, ArgIdx, Str,
-                                         AL.getAttributeSpellingListIndex()));
+  D->addAttr(::new (S.Context) AttrType(S.Context, CI, ArgIdx, Str));
 }
 
 template <typename AttrType>
-static void handleSimpleStringAttribute(Sema &S, Decl *D, const ParsedAttr &AL) {
+static void handleSimpleStringAttribute(Sema &S, Decl *D, const ParsedAttr &CI) {
   // check the attribute arguments.
-  if (AL.getNumArgs() != 1) {
-    S.Diag(AL.getLoc(), diag::err_attribute_wrong_number_arguments) << AL << 1;
+  if (CI.getNumArgs() != 1) {
+    S.Diag(CI.getLoc(), diag::err_attribute_wrong_number_arguments) << CI << 1;
     return;
   }
 
   StringRef Str;
-  S.checkStringLiteralArgumentAttr(AL, 0, Str);
+  S.checkStringLiteralArgumentAttr(CI, 0, Str);
   
-  D->addAttr(::new (S.Context) AttrType(AL.getRange(), S.Context, Str,
-                                         AL.getAttributeSpellingListIndex()));
+  D->addAttr(::new (S.Context) AttrType(S.Context, CI, Str));
 }
 
 static void handleAlignedAttr(Sema &S, Decl *D, const ParsedAttr &AL) {

@@ -2159,15 +2159,15 @@ void CodeGenModule::ConstructAttributeList(
             int Index;
 
             if (auto RetAttr = dyn_cast<LLVMRETAttr>(Attr)) {
-                AttributeAndValue = RetAttr->getAttrName().split('=');
+                AttributeAndValue = RetAttr->getLLVMAttrName().split('=');
                 Index = llvm::AttributeList::ReturnIndex;
             } else if (auto ArgAttr = dyn_cast<LLVMARGAttr>(Attr)) {
-                AttributeAndValue = ArgAttr->getAttrName().split('=');
+                AttributeAndValue = ArgAttr->getLLVMAttrName().split('=');
                 Index = llvm::AttributeList::FirstArgIndex + ArgAttr->getParamIndex();
                 if (sr1 && Index>=1) Index++;
                 if (sr0) Index++;
             } else if (auto ArgAttr = dyn_cast<LLVMFNAttr>(Attr)) {
-                AttributeAndValue = ArgAttr->getAttrName().split('=');
+                AttributeAndValue = ArgAttr->getLLVMAttrName().split('=');
                 Index = -1;
             } else assert(0 && "must be llvm ret or arg attribute");
             
