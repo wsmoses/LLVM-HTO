@@ -552,7 +552,9 @@ void DeclPrinter::VisitRecordDecl(RecordDecl *D) {
   if (D->getIdentifier())
     Out << ' ' << *D;
 
-  if (D->isCompleteDefinition()) {
+  if (Policy.handleSubType) {
+    Out << ";";
+  } else if (D->isCompleteDefinition()) {
     Out << " {\n";
     VisitDeclContext(D);
     Indent() << "}";
@@ -1016,7 +1018,10 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
 
     // Print the class definition
     // FIXME: Doesn't print access specifiers, e.g., "public:"
-    if (Policy.TerseOutput) {
+    if (Policy.handleSubType) {
+        Out << ";";
+    }
+    else if (Policy.TerseOutput) {
       Out << " {}";
     } else {
       Out << " {\n";
