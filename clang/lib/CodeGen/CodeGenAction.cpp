@@ -937,6 +937,7 @@ void BackendConsumer::OptimizationRemarkHandler(
    }
   };
 
+  bool seenbool = false;
   std::function<void(const clang::Type*)> handleType;
   std::function<void(std::string name, QualType)> handleTypedef = [&](std::string name, QualType qt)  {
     //llvm::errs() << "handling type "; ot->dump(); llvm::errs() << "\n";
@@ -962,6 +963,17 @@ void BackendConsumer::OptimizationRemarkHandler(
   handleType = [&](const clang::Type* ot)  {
     if (doneRecords[myfile].count(ot) > 0) return;
     doneRecords[myfile].insert(ot);
+
+    if (ot == (const clang::Type*)0xDEADBEEF) {
+        seenbool = true;
+        return;
+    }
+    if (auto bt = dyn_cast<BuiltinType>(ot)) {
+        if (bt->getKind() == BuiltinType::Kind::Bool) {
+            seenbool = true;
+            return;
+        }
+    }
 
     if (auto tst = dyn_cast<TemplateSpecializationType>(ot)) {
 
@@ -1082,7 +1094,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   policy.SuppressScope = false;
   policy.FullyQualifiedName = true;
   policy.TerseOutput = true;
-  policy.Bool = false;
+  policy.Bool = fd->getLanguageLinkage() == clang::LanguageLinkage::CXXLanguageLinkage;
   policy.handleSubType = handleType;
   policy.handleTypedef = handleTypedef;
   std::string outp;
@@ -1121,7 +1133,7 @@ void BackendConsumer::OptimizationRemarkHandler(
 		llvm::errs() << "could not open file " << myfile << " because of " << error.message() << "\n";
 		llvm_unreachable("badfile");
     }
-  if (addedbool.count(myfile) == 0) {
+  if (addedbool.count(myfile) == 0 && seenbool) {
     outfile << "#include <stdbool.h>\n";
     addedbool.insert(myfile);
   }

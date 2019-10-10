@@ -548,7 +548,8 @@ const char *DeclSpec::getSpecifierName(DeclSpec::TST T,
   case DeclSpec::TST_fract:       return "_Fract";
   case DeclSpec::TST_float16:     return "_Float16";
   case DeclSpec::TST_float128:    return "__float128";
-  case DeclSpec::TST_bool:        return Policy.Bool ? "bool" : "_Bool";
+  case DeclSpec::TST_bool:        Policy.handleSubType((const clang::Type*)0xDEADBEEF);
+                                  return Policy.Bool ? "bool" : "_Bool";
   case DeclSpec::TST_decimal32:   return "_Decimal32";
   case DeclSpec::TST_decimal64:   return "_Decimal64";
   case DeclSpec::TST_decimal128:  return "_Decimal128";

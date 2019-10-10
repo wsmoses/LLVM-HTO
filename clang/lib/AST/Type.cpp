@@ -2941,6 +2941,7 @@ StringRef BuiltinType::getName(const PrintingPolicy &Policy) const {
   case Void:
     return "void";
   case Bool:
+    if (!Policy.Bool && Policy.handleSubType) Policy.handleSubType(this);
     return Policy.Bool ? "bool" : "_Bool";
   case Char_S:
     return "char";

@@ -3634,6 +3634,11 @@ static void ParsePreprocessorArgs(PreprocessorOptions &Opts, ArgList &Args,
     if (dir.size() > 0 && dir[0] == '=') dir = dir.substr(1);
     //llvm::errs() << "searching in dir: " << dir << "\n";
     for (const auto B : getFilesInDirectory(dir)) {
+        if (B.size() < 2) continue;
+        if (!(B.substr(B.size()-2) == ".h" || (B.size() > 4 && B.substr(B.size()-4) == ".hpp") )) {
+            llvm::errs() << "nonheaderfile found " << dir << "/" << B << "\n";
+            continue;
+        }
       std::string file = dir + "/" + B;
       //llvm::errs() << "found file to htoinclude: " << file << "\n";
       Opts.Includes.emplace_back(file);
