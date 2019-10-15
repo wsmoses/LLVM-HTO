@@ -102,6 +102,7 @@ namespace {
       (void) llvm::createDomOnlyViewerPass();
       (void) llvm::createDomViewerPass();
       (void) llvm::createEmitAnnotationsPass();
+      (void) llvm::createAnnotationStatsPass();
       (void) llvm::createGCOVProfilerPass();
       (void) llvm::createPGOInstrumentationGenLegacyPass();
       (void) llvm::createPGOInstrumentationUseLegacyPass();
