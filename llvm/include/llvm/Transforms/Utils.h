@@ -113,6 +113,12 @@ FunctionPass *createEmitAnnotationsPass();
 
 //===----------------------------------------------------------------------===//
 //
+// AnnotationStats - This pass is used to create annotations about derived LLVM
+// information that can be fed back in through the front end
+ModulePass *createAnnotationStatsPass();
+
+//===----------------------------------------------------------------------===//
+//
 // LoopSimplify - Insert Pre-header blocks into the CFG for every function in
 // the module.  This pass updates dominator information, loop information, and
 // does not add critical edges to the CFG.
