@@ -80,7 +80,10 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
             annotations << "ret_attr(" << fixQuotes(a.getAsString(true)) << ") ";
         }
         annotations << "\n";
-      ORE.emit(annotations);
+
+      if (prev) {
+        ORE.emit(annotations);
+      }
 }
 
 namespace llvm {
