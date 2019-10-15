@@ -13,6 +13,7 @@ add_llvm_library(LLVMTransformUtils
   CtorUtils.cpp
   DemoteRegToStack.cpp
   EmitAnnotations.cpp
+  AnnotationStats.cpp
   EntryExitInstrumenter.cpp
   EscapeEnumerator.cpp
   Evaluator.cpp
