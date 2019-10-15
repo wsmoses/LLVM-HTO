@@ -26,6 +26,9 @@
 
 using namespace llvm;
 
+llvm::cl::opt<bool> ignoreStringAttributes("hto_nostring", cl::init(false), cl::Hidden,
+                cl::desc("Don't print string attributes"));
+
 #define DEBUG_TYPE "emit-annotations"
 
 std::string fixQuotes(std::string str) {
@@ -40,6 +43,7 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
         if (F->hasPrivateLinkage() || F->hasInternalLinkage()) return;
         if (F->getName() == "main") return;
         for(auto a : list.getFnAttributes()) {
+            if (ignoreStringAttributes && a.isStringAttribute()) continue; 
             if (prev) annotations << ",";
             prev = true;
             annotations << "fn_attr(" << fixQuotes(a.getAsString(true)) << ") ";
@@ -60,6 +64,7 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
                 */
             } else {
                 for(auto a : list.getParamAttributes(i)) {
+                  if (ignoreStringAttributes && a.isStringAttribute()) continue; 
                   if (prev) annotations << ",";
                   prev = true;
                   annotations << "arg_attr(" << std::to_string(j+1) << ", " << fixQuotes(a.getAsString(true)) << ") ";
@@ -69,6 +74,7 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
         }
         for(auto a : list.getRetAttributes()) {
             assert(structreturn == false);
+            if (ignoreStringAttributes && a.isStringAttribute()) continue; 
             if (prev) annotations << ",";
             prev = true;
             annotations << "ret_attr(" << fixQuotes(a.getAsString(true)) << ") ";
