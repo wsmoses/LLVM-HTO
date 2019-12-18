@@ -80,7 +80,7 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
             annotations << "ret_attr(" << fixQuotes(a.getAsString(true)) << ") ";
         }
         annotations << "\n";
-
+      //llvm::errs() << "considering emmitting annotation for prev: " << prev << " F:"  << *F << "\n";
       if (prev) {
         ORE.emit(annotations);
       }

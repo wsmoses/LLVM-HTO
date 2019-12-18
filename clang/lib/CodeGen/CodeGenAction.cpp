@@ -817,7 +817,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   const FunctionDecl* fd = dyn_cast<FunctionDecl>(Decl.getDecl());
   if (!Decl.getDecl()) {
       llvm::errs() << "!!!couldn't lookup function decl\n";
-             return;
+      return;
   }
 
   std::string myfile;
@@ -843,6 +843,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   } else {
       myfile = hto_file;
   }
+  //llvm::errs() << "hto file: " << hto_file << "\n";
 
   std::string Msg;
   {
@@ -878,6 +879,8 @@ void BackendConsumer::OptimizationRemarkHandler(
    }
    return false;
   };
+
+  bool requireshtocpp = false;
   auto namespaceBefore = [&](ContextsTy& Contexts, const NamedDecl *fd, raw_ostream &printstream, bool newline = true) {
    const DeclContext *Ctx = fd->getDeclContext();
  
@@ -885,15 +888,29 @@ void BackendConsumer::OptimizationRemarkHandler(
 	 llvm::errs() << "illegal nested function " << fd->getName() << "\n";
      return;
    } 
+   
+   bool notinclass = false; 
  
    while (Ctx) {
-     if (isa<NamedDecl>(Ctx))
-       Contexts.push_back(Ctx);
+     if (isa<NamedDecl>(Ctx)) {
+        if (isa<RecordDecl>(Ctx)) {
+          requireshtocpp = true;
+          if (notinclass) {
+	   		llvm::errs() << "cannot handle function inside namespace inside class " << *fd << "\n";
+            error = true;
+       		return;
+         }
+        } else {
+          notinclass = true;
+          Contexts.push_back(Ctx);
+        }
+     }
      Ctx = Ctx->getParent();
    }
- 
+
    for (const auto dc : llvm::reverse(Contexts)) {
      if (const auto *nd = dyn_cast<NamespaceDecl>(dc)) {
+
        if (nd->isAnonymousNamespace()) {
 	   		llvm::errs() << "illegal anonymous namespace function " << *fd << "\n";
             error = true;
@@ -1042,7 +1059,22 @@ void BackendConsumer::OptimizationRemarkHandler(
       }
       namespaceBefore(Contexts, dcl, printstream, false);
 
-      printstream << dcl->getKindName() << " " << dcl->getName() << "; ";
+      printstream << dcl->getKindName() << " ";
+      
+    const DeclContext *Ctx = dcl->getDeclContext();
+    SmallVector<const RecordDecl*,8> RContexts;
+     while (Ctx) {
+        if (const auto *RD = dyn_cast<RecordDecl>(Ctx)) {
+          assert(RD->getIdentifier());
+          RContexts.push_back(RD);
+        }
+        Ctx = Ctx->getParent();
+     }
+      for (const auto dc : llvm::reverse(RContexts)) {
+        printstream << dc->getName().str() + "::";
+      }
+
+      printstream << dcl->getName() << "; ";
       //printstream << outp << "; ";
        
       for (const auto dc : llvm::reverse(Contexts)) {
@@ -1075,6 +1107,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   }
 
 
+
   namespaceBefore(Contexts, fd, fnstream);
   if (error) return;
 
@@ -1101,6 +1134,9 @@ void BackendConsumer::OptimizationRemarkHandler(
 
   //llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
   //
+  if (requireshtocpp) {
+    printstream << "#ifdef __hto_cpp__\n";
+  }
 
   printstream << fnstream.str();
   //llvm::errs() << outstring.str() << ";\n";
@@ -1110,12 +1146,17 @@ void BackendConsumer::OptimizationRemarkHandler(
      printstream << "}; "; 
   }
   printstream << "\n";
+
   if (fd->getLanguageLinkage() == clang::LanguageLinkage::CLanguageLinkage ) {
     if (!fd->isInExternCContext())
       printstream << "#ifdef __cplusplus\n";
     printstream << "}\n";
     printstream << "#endif\n";
   } else if (fd->getLanguageLinkage() == clang::LanguageLinkage::CXXLanguageLinkage ) {
+    printstream << "#endif\n";
+  }
+  
+  if (requireshtocpp) {
     printstream << "#endif\n";
   }
 
