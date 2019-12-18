@@ -221,7 +221,7 @@ bool Sema::RequireCompleteDeclContext(CXXScopeSpec &SS,
   if (loc.isInvalid()) loc = SS.getRange().getBegin();
 
   // The type must be complete.
-  if (RequireCompleteType(loc, type, diag::err_incomplete_nested_name_spec,
+  if (false && RequireCompleteType(loc, type, diag::err_incomplete_nested_name_spec,
                           SS.getRange())) {
     SS.SetInvalid(SS.getRange());
     return true;
