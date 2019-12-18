@@ -626,6 +626,19 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   std::string Proto;
 
   if (Policy.handleSubType) {
+    const DeclContext *Ctx = D->getDeclContext();
+    SmallVector<const RecordDecl*,8> Contexts;
+     while (Ctx) {
+        if (const auto *RD = dyn_cast<RecordDecl>(Ctx)) {
+          assert(RD->getIdentifier());
+          Contexts.push_back(RD);
+        }
+        Ctx = Ctx->getParent();
+     }
+    for (const auto dc : llvm::reverse(Contexts)) {
+        Proto += dc->getName().str() + "::";
+    }
+
     Proto += D->getNameInfo().getAsString();
   } else if (Policy.FullyQualifiedName) {
     Proto += D->getQualifiedNameAsString();
