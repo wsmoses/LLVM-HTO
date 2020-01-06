@@ -2139,11 +2139,13 @@ bool Sema::LookupQualifiedName(LookupResult &R, DeclContext *LookupCtx,
     return false;
 
   // Make sure that the declaration context is complete.
+  /*
   assert((!isa<TagDecl>(LookupCtx) ||
           LookupCtx->isDependentContext() ||
           cast<TagDecl>(LookupCtx)->isCompleteDefinition() ||
           cast<TagDecl>(LookupCtx)->isBeingDefined()) &&
          "Declaration context must already be complete!");
+  */
 
   struct QualifiedLookupInScope {
     bool oldVal;

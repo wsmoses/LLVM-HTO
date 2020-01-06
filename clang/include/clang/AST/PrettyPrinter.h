@@ -22,6 +22,7 @@ class LangOptions;
 class SourceManager;
 class Stmt;
 class TagDecl;
+class FunctionDecl;
 class Type;
 class QualType;
 
@@ -259,8 +260,12 @@ struct PrintingPolicy {
 
   /// When RemapFilePaths is true, this function performs the action.
   std::function<void(const clang::Type*)> handleSubType;
+
   /// When RemapFilePaths is true, this function performs the action.
   std::function<void(std::string, clang::QualType)> handleTypedef;
+  
+  /// When RemapFilePaths is true, this function performs the action.
+  std::function<std::string(clang::FunctionDecl*)> nameMangler;
 };
 
 } // end namespace clang

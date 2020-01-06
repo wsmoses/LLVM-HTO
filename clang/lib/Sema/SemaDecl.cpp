@@ -5757,12 +5757,14 @@ NamedDecl *Sema::HandleDeclarator(Scope *S, Declarator &D,
       return nullptr;
 
     // If a class is incomplete, do not parse entities inside it.
+    /*
     if (isa<CXXRecordDecl>(DC) && !cast<CXXRecordDecl>(DC)->hasDefinition()) {
       Diag(D.getIdentifierLoc(),
            diag::err_member_def_undefined_record)
         << Name << DC << D.getCXXScopeSpec().getRange();
       return nullptr;
     }
+    */
     if (!D.getDeclSpec().isFriendSpecified()) {
       if (diagnoseQualifiedDeclaration(
               D.getCXXScopeSpec(), DC, Name, D.getIdentifierLoc(),

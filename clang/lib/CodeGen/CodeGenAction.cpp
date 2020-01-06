@@ -1089,6 +1089,7 @@ void BackendConsumer::OptimizationRemarkHandler(
       if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
         printstream << "#endif\n";
       }
+      printstream << "\n";
 
       /*
         */
@@ -1109,11 +1110,12 @@ void BackendConsumer::OptimizationRemarkHandler(
       fnstream << "#endif\n";
   } else if (fd->getLanguageLinkage() == clang::LanguageLinkage::CXXLanguageLinkage ) {
     fnstream << "#ifdef __cplusplus\n";
+    fnstream << "extern \"C\" {\n";
   }
 
 
 
-  namespaceBefore(Contexts, fd, fnstream);
+  //namespaceBefore(Contexts, fd, fnstream);
   if (error) return;
 
   fnstream << "__attribute__(( " << D.getMsg() << " ))\n";
@@ -1130,6 +1132,24 @@ void BackendConsumer::OptimizationRemarkHandler(
   policy.Bool = fd->getLanguageLinkage() == clang::LanguageLinkage::CXXLanguageLinkage;
   policy.handleSubType = handleType;
   policy.handleTypedef = handleTypedef;
+  std::string mangledname = "";
+  policy.nameMangler = [&](FunctionDecl* myf) -> std::string{
+     GlobalDecl gd;
+     if (auto cons = dyn_cast<CXXConstructorDecl>(myf)) {
+        error = true;
+        return "";
+         //gd = GlobalDecl(cons);
+     } else if(auto des = dyn_cast<CXXDestructorDecl>(myf)) {
+        error = true;
+        return "";
+         //gd = GlobalDecl(des);
+     } else {
+         gd = GlobalDecl(myf);
+     }
+     auto ret = Gen->CGM().getMangledName(gd);
+     mangledname = ret.str();
+     return ret.str();
+  };
   std::string outp;
 
   std::string sstream;
@@ -1146,11 +1166,12 @@ void BackendConsumer::OptimizationRemarkHandler(
   printstream << fnstream.str();
   //llvm::errs() << outstring.str() << ";\n";
   printstream << outstring.str() << ";\n";
+
+  printstream << "void* __hto_global_" << mangledname << " = " << mangledname << ";\n";
    
-  for (const auto dc : llvm::reverse(Contexts)) {
-     printstream << "}; "; 
-  }
-  printstream << "\n";
+  //for (const auto dc : llvm::reverse(Contexts)) {
+  //   printstream << "}; "; 
+  //}
 
   if (fd->getLanguageLinkage() == clang::LanguageLinkage::CLanguageLinkage ) {
     if (!fd->isInExternCContext())
@@ -1158,12 +1179,15 @@ void BackendConsumer::OptimizationRemarkHandler(
     printstream << "}\n";
     printstream << "#endif\n";
   } else if (fd->getLanguageLinkage() == clang::LanguageLinkage::CXXLanguageLinkage ) {
+    printstream << "}\n";
     printstream << "#endif\n";
   }
   
   if (requireshtocpp) {
     printstream << "#endif\n";
   }
+  
+  printstream << "\n";
 
   if (error) return;
   

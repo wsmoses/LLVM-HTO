@@ -625,7 +625,8 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
   SubPolicy.SuppressSpecifiers = false;
   std::string Proto;
 
-  if (Policy.handleSubType) {
+  if (Policy.nameMangler) {
+    /*
     const DeclContext *Ctx = D->getDeclContext();
     SmallVector<const RecordDecl*,8> Contexts;
      while (Ctx) {
@@ -638,8 +639,8 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     for (const auto dc : llvm::reverse(Contexts)) {
         Proto += dc->getName().str() + "::";
     }
-
-    Proto += D->getNameInfo().getAsString();
+    */
+    Proto += Policy.nameMangler(D);
   } else if (Policy.FullyQualifiedName) {
     Proto += D->getQualifiedNameAsString();
   } else {
@@ -678,6 +679,16 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       FT = dyn_cast<FunctionProtoType>(AFT);
 
     Proto += "(";
+    
+    if (Policy.nameMangler) {
+        if (auto M = dyn_cast<CXXMethodDecl>(D)) {
+            if (M->isInstance()) {
+                QualType thisType = M->getThisType();
+                Proto += thisType.getAsString(SubPolicy) + ", ";
+            }
+        }
+    }
+
     if (FT) {
       llvm::raw_string_ostream POut(Proto);
       DeclPrinter ParamPrinter(POut, SubPolicy, Context, Indentation);
