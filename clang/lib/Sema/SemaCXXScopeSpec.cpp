@@ -263,6 +263,8 @@ bool Sema::RequireCompleteDeclContext(CXXScopeSpec &SS,
     }
   }
 
+  return false;
+
   Diag(loc, diag::err_incomplete_nested_name_spec)
     << type << SS.getRange();
   SS.SetInvalid(SS.getRange());
