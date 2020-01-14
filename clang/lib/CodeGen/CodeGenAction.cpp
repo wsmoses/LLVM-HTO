@@ -1167,7 +1167,7 @@ void BackendConsumer::OptimizationRemarkHandler(
   //llvm::errs() << outstring.str() << ";\n";
   printstream << outstring.str() << ";\n";
 
-  printstream << "void* __hto_global_" << mangledname << " = (void*)" << mangledname << ";\n";
+  printstream << "void* __attribute__((weak)) __hto_global_" << std::to_string(rand()) << "_" << mangledname << " = (void*)" << mangledname << ";\n";
    
   //for (const auto dc : llvm::reverse(Contexts)) {
   //   printstream << "}; "; 
