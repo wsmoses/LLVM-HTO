@@ -590,7 +590,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       !D->isFunctionTemplateSpecialization())
     prettyPrintPragmas(D);
 
-  if (D->isFunctionTemplateSpecialization())
+  if (D->isFunctionTemplateSpecialization() && !Policy.nameMangler)
     Out << "template<> ";
   else if (!D->getDescribedFunctionTemplate()) {
     for (unsigned I = 0, NumTemplateParams = D->getNumTemplateParameterLists();
@@ -612,7 +612,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     }
 
     if (D->isInlineSpecified())  Out << "inline ";
-    if (D->isVirtualAsWritten()) Out << "virtual ";
+    if (D->isVirtualAsWritten() && !Policy.nameMangler) Out << "virtual ";
     if (D->isModulePrivate())    Out << "__module_private__ ";
     if (D->isConstexprSpecified() && !D->isExplicitlyDefaulted())
       Out << "constexpr ";
@@ -656,6 +656,8 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
 
   if (GuideDecl)
     Proto = GuideDecl->getDeducedTemplate()->getDeclName().getAsString();
+  
+  if (!Policy.nameMangler) {
   if (D->isFunctionTemplateSpecialization()) {
     llvm::raw_string_ostream POut(Proto);
     DeclPrinter TArgPrinter(POut, SubPolicy, Context, Indentation);
@@ -665,6 +667,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     else if (const TemplateArgumentList *TArgs =
                  D->getTemplateSpecializationArgs())
       TArgPrinter.printTemplateArguments(TArgs->asArray());
+    }
   }
 
   QualType Ty = D->getType();
@@ -685,7 +688,8 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
         if (auto M = dyn_cast<CXXMethodDecl>(D)) {
             if (M->isInstance()) {
                 QualType thisType = M->getThisType();
-                Proto += thisType.getAsString(SubPolicy) + ", ";
+                Proto += thisType.getAsString(SubPolicy);
+                if (D->getNumParams()) Proto += ", ";
             }
         }
     }
@@ -720,7 +724,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     Proto += ")";
 
     if (FT) {
-      if (FT->isConst())
+      if (FT->isConst() && !Policy.nameMangler)
         Proto += " const";
       if (FT->isVolatile())
         Proto += " volatile";
@@ -1018,7 +1022,7 @@ void DeclPrinter::VisitCXXRecordDecl(CXXRecordDecl *D) {
 
   if (D->isCompleteDefinition()) {
     // Print the base classes
-    if (D->getNumBases()) {
+    if (D->getNumBases() && !Policy.handleSubType) {
       Out << " : ";
       for (CXXRecordDecl::base_class_iterator Base = D->bases_begin(),
              BaseEnd = D->bases_end(); Base != BaseEnd; ++Base) {
