@@ -819,6 +819,7 @@ void BackendConsumer::OptimizationRemarkHandler(
       llvm::errs() << "!!!couldn't lookup function decl\n";
       return;
   }
+  if (auto def = fd->getDefinition()) fd = def;
 
   std::string myfile;
   if (hto_dir.size() != 0) {
@@ -895,11 +896,11 @@ void BackendConsumer::OptimizationRemarkHandler(
      if (isa<NamedDecl>(Ctx)) {
         if (isa<RecordDecl>(Ctx)) {
           requireshtocpp = true;
-          if (notinclass) {
+          //if (notinclass) {
 	   		llvm::errs() << "cannot handle function inside namespace inside class " << *fd << "\n";
             error = true;
        		return;
-         }
+         //}
         } else {
           notinclass = true;
           Contexts.push_back(Ctx);
@@ -949,6 +950,7 @@ void BackendConsumer::OptimizationRemarkHandler(
    }
   };
 
+  std::vector<const clang::Type*> typesadded;
   bool seenbool = false;
   std::function<void(const clang::Type*)> handleType;
   std::function<void(std::string name, QualType)> handleTypedef = [&](std::string name, QualType qt)  {
@@ -969,6 +971,8 @@ void BackendConsumer::OptimizationRemarkHandler(
       std::string output;
       raw_string_ostream ostr(output);
       qt.print(ostr, policy, name, 0);
+
+      if (isa<ArrayType>(qt.getTypePtr())) error = true;
       printstream << "typedef " << ostr.str() << ";\n";
   };
 
@@ -976,10 +980,14 @@ void BackendConsumer::OptimizationRemarkHandler(
     if (doneRecords[myfile].count(ot) > 0) return;
     doneRecords[myfile].insert(ot);
 
+    typesadded.push_back(ot);
+
+
     if (ot == (const clang::Type*)0xDEADBEEF) {
         seenbool = true;
         return;
     }
+
     if (auto bt = dyn_cast<BuiltinType>(ot)) {
         if (bt->getKind() == BuiltinType::Kind::Bool) {
             seenbool = true;
@@ -987,7 +995,7 @@ void BackendConsumer::OptimizationRemarkHandler(
         }
     }
 
-    if (auto tst = dyn_cast<TemplateSpecializationType>(ot)) {
+    if (auto tst = ot->getAs<TemplateSpecializationType>()) {
 
         //if(!isa<RecordType>(ot)) return;
       
@@ -1013,19 +1021,68 @@ void BackendConsumer::OptimizationRemarkHandler(
       dcl->print(ostr, policy);
             
         ContextsTy Contexts;
-        printstream << "#ifdef __cplusplus\n";
-        namespaceBefore(Contexts, dcl, printstream, false);
+        
+        std::string poutput;
+        raw_string_ostream postr(poutput);
+        postr << "#ifdef __cplusplus\n";
+        namespaceBefore(Contexts, dcl, postr, false);
 
-        printstream << ostr.str() << ";";
+        postr << ostr.str() << ";";
       
         for (const auto dc : llvm::reverse(Contexts)) {
-          printstream << "}; "; 
+          postr << "}; "; 
         }
-        printstream << "\n";
-        printstream << "#endif\n";
-
+        postr << "\n";
+        postr << "#endif\n";
+   
+        printstream << postr.str();
         return;
     }
+    
+    
+    if (auto tst = dyn_cast<DeducedTemplateSpecializationType>(ot)) {
+
+        //if(!isa<RecordType>(ot)) return;
+      
+        std::string output;
+        raw_string_ostream ostr(output);
+      PrintingPolicy policy(Gen->CGM().getLangOpts());
+      policy.Indentation = 0;
+      policy.SuppressTagKeyword = false;
+      policy.SuppressUnwrittenScope = false;
+      policy.SuppressInitializers = true;
+      policy.IncludeNewlines = false;
+      policy.SuppressScope = false;
+      policy.handleSubType = handleType;
+      policy.handleTypedef = handleTypedef;
+      policy.FullyQualifiedName = false;//true;
+        
+      auto dcl = tst->getTemplateName().getAsTemplateDecl();
+      assert(dcl);
+      //for(auto n : *dcl->getTemplateParameters()) {
+      //  n->print(llvm::errs(), policy);
+      //}
+
+      dcl->print(ostr, policy);
+            
+        ContextsTy Contexts;
+        
+        std::string poutput;
+        raw_string_ostream postr(poutput);
+        postr << "#ifdef __cplusplus\n";
+        namespaceBefore(Contexts, dcl, postr, false);
+
+        postr << ostr.str() << ";";
+      
+        for (const auto dc : llvm::reverse(Contexts)) {
+          postr << "}; "; 
+        }
+        postr << "\n";
+        postr << "#endif\n";
+        printstream << postr.str();
+        return;
+    }
+    
     
     if(const auto et = dyn_cast<RecordType>(ot)) {
       auto dcl = et->getDecl();
@@ -1038,7 +1095,19 @@ void BackendConsumer::OptimizationRemarkHandler(
             exit(1);
       }
 
-      /*
+      ContextsTy Contexts;
+        
+      std::string poutput;
+      raw_string_ostream postr(poutput);
+      
+      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
+        postr << "#ifdef __cplusplus\n";
+      }
+      namespaceBefore(Contexts, dcl, postr, false);
+
+    
+        std::string output;
+        raw_string_ostream ostr(output);
       PrintingPolicy policy(Gen->CGM().getLangOpts());
       policy.Indentation = 0;
       policy.SuppressTagKeyword = false;
@@ -1049,17 +1118,14 @@ void BackendConsumer::OptimizationRemarkHandler(
       policy.handleSubType = handleType;
       policy.handleTypedef = handleTypedef;
       policy.FullyQualifiedName = false;//true;
-      std::string outp;
-      QualType(ot, 0).getAsStringInternal(outp, policy);
-      */
-
-      ContextsTy Contexts;
-      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
-        printstream << "#ifdef __cplusplus\n";
+    
+      NamedDecl* toprint = dcl;
+      if (auto ctsd = dyn_cast<ClassTemplateSpecializationDecl>(toprint)) {
+          toprint = ctsd->getSpecializedTemplate();
       }
-      namespaceBefore(Contexts, dcl, printstream, false);
-
-      printstream << dcl->getKindName() << " ";
+      toprint->print(ostr, policy);
+        
+      postr << ostr.str() << "; ";
       
     const DeclContext *Ctx = dcl->getDeclContext();
     SmallVector<const RecordDecl*,8> RContexts;
@@ -1071,24 +1137,28 @@ void BackendConsumer::OptimizationRemarkHandler(
         Ctx = Ctx->getParent();
      }
       for (const auto dc : llvm::reverse(RContexts)) {
-        printstream << dc->getName().str() + "::";
+        postr << dc->getName().str() + "::";
       }
 
-      printstream << dcl->getName() << "; ";
+      //printstream << dcl->getName() << "; ";
       //printstream << outp << "; ";
        
       for (const auto dc : llvm::reverse(Contexts)) {
-         printstream << "}; "; 
+         postr << "}; "; 
       }
-      printstream << "\n";
+      postr << "\n";
       if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
-        printstream << "#endif\n";
+        postr << "#endif\n";
       }
-      printstream << "\n";
-
+      postr << "\n";
       /*
         */
+
+      printstream << postr.str();
+      return;
     }
+
+    
   };
 
   if (inStdNamespace(fd)) return;
@@ -1111,7 +1181,11 @@ void BackendConsumer::OptimizationRemarkHandler(
 
 
   //namespaceBefore(Contexts, fd, fnstream);
-  if (error) return;
+  if (error) {
+    for(auto ta: typesadded)
+        doneRecords[myfile].erase(ta);
+    return;
+  }
 
   fnstream << "__attribute__(( " << D.getMsg() << " ))\n";
 
@@ -1150,7 +1224,11 @@ void BackendConsumer::OptimizationRemarkHandler(
   std::string sstream;
   raw_string_ostream outstring(sstream);
   fd->print(outstring, policy, 0, false);
-  if (error) return;
+  if (error) {
+    for(auto ta: typesadded)
+        doneRecords[myfile].erase(ta);
+    return;
+  }
 
   //llvm::errs() << "__attribute__(( " << D.getMsg() << " ))\n";
   //
@@ -1184,7 +1262,11 @@ void BackendConsumer::OptimizationRemarkHandler(
   
   printstream << "\n";
 
-  if (error) return;
+  if (error) {
+    for(auto ta: typesadded)
+        doneRecords[myfile].erase(ta);
+    return;
+  }
   
   {
   std::error_code error;
