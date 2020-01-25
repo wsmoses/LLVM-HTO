@@ -2162,7 +2162,7 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
       return QualType();
     }
 
-    if (T->isVoidType() || T->isIncompleteArrayType()) {
+    if (T->isVoidType() /*|| T->isIncompleteArrayType()*/) {
       Diag(Loc, diag::err_illegal_decl_array_incomplete_type) << T;
       return QualType();
     }
@@ -2181,9 +2181,9 @@ QualType Sema::BuildArrayType(QualType T, ArrayType::ArraySizeModifier ASM,
   } else {
     // C99 6.7.5.2p1: If the element type is an incomplete or function type,
     // reject it (e.g. void ary[7], struct foo ary[7], void ary[7]())
-    if (RequireCompleteType(Loc, T,
-                            diag::err_illegal_decl_array_incomplete_type))
-      return QualType();
+    //if (RequireCompleteType(Loc, T,
+    //                        diag::err_illegal_decl_array_incomplete_type))
+    //  return QualType();
   }
 
   if (T->isFunctionType()) {
