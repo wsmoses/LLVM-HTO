@@ -589,12 +589,16 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       !D->isFunctionTemplateSpecialization())
     prettyPrintPragmas(D);
 
-  if (D->isFunctionTemplateSpecialization() && !Policy.nameMangler)
-    Out << "template<> ";
-  else if (!D->getDescribedFunctionTemplate()) {
-    for (unsigned I = 0, NumTemplateParams = D->getNumTemplateParameterLists();
-         I < NumTemplateParams; ++I)
-      printTemplateParameters(D->getTemplateParameterList(I));
+  if (!Policy.nameMangler) {
+
+      if (D->isFunctionTemplateSpecialization())
+        Out << "template<> ";
+      else if (!D->getDescribedFunctionTemplate()) {
+        for (unsigned I = 0, NumTemplateParams = D->getNumTemplateParameterLists();
+             I < NumTemplateParams; ++I)
+          printTemplateParameters(D->getTemplateParameterList(I));
+      }
+
   }
 
   CXXConstructorDecl *CDecl = dyn_cast<CXXConstructorDecl>(D);
@@ -770,7 +774,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
     if (CDecl) {
       if (!Policy.TerseOutput)
         PrintConstructorInitializers(CDecl, Proto);
-    } else if (!ConversionDecl && !isa<CXXDestructorDecl>(D)) {
+    } else if (Policy.nameMangler || (!ConversionDecl && !isa<CXXDestructorDecl>(D))) {
       if (FT && FT->hasTrailingReturn()) {
         if (!GuideDecl)
           Out << "auto ";
