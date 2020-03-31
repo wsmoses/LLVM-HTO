@@ -100,6 +100,7 @@ namespace {
       (void) llvm::createDomPrinterPass();
       (void) llvm::createDomOnlyViewerPass();
       (void) llvm::createDomViewerPass();
+      (void) llvm::createHTOCleanupPass();
       (void) llvm::createEmitAnnotationsPass();
       (void) llvm::createAnnotationStatsPass();
       (void) llvm::createGCOVProfilerPass();

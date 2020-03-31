@@ -185,6 +185,7 @@
 #include "llvm/Transforms/Utils/CanonicalizeFreezeInLoops.h"
 #include "llvm/Transforms/Utils/EntryExitInstrumenter.h"
 #include "llvm/Transforms/Utils/InjectTLIMappings.h"
+#include "llvm/Transforms/Utils/HTOCleanup.h"
 #include "llvm/Transforms/Utils/EmitAnnotations.h"
 #include "llvm/Transforms/Utils/LCSSA.h"
 #include "llvm/Transforms/Utils/LibCallsShrinkWrap.h"
@@ -906,6 +907,7 @@ PassBuilder::buildInlinerPipeline(OptimizationLevel Level, ThinLTOPhase Phase,
 ModulePassManager PassBuilder::buildModuleSimplificationPipeline(
     OptimizationLevel Level, ThinLTOPhase Phase, bool DebugLogging) {
   ModulePassManager MPM(DebugLogging);
+  MPM.addPass(HTOCleanupPass());
 
   bool HasSampleProfile = PGOOpt && (PGOOpt->Action == PGOOptions::SampleUse);
 
@@ -1256,6 +1258,7 @@ PassBuilder::buildPerModuleDefaultPipeline(OptimizationLevel Level,
 
   ModulePassManager MPM(DebugLogging);
 
+  MPM.addPass(HTOCleanupPass());
   // Force any function attributes we want the rest of the pipeline to observe.
   MPM.addPass(ForceFunctionAttrsPass());
 

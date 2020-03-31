@@ -30,6 +30,7 @@ void llvm::initializeTransformUtils(PassRegistry &Registry) {
   initializeCanonicalizeAliasesLegacyPassPass(Registry);
   initializeCanonicalizeFreezeInLoopsPass(Registry);
   initializeEmitAnnotationsLegacyPassPass(Registry);
+  initializeHTOCleanupLegacyPassPass(Registry);
   initializeAnnotationStatsLegacyPassPass(Registry);
   initializeInstNamerPass(Registry);
   initializeLCSSAWrapperPassPass(Registry);
