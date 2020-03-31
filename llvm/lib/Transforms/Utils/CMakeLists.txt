@@ -28,6 +28,7 @@ add_llvm_component_library(LLVMTransformUtils
   FunctionImportUtils.cpp
   GlobalStatus.cpp
   GuardUtils.cpp
+  HTOCleanup.cpp
   InlineFunction.cpp
   ImportedFunctionsInliningStatistics.cpp
   InjectTLIMappings.cpp
