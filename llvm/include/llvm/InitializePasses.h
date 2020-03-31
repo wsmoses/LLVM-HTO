@@ -137,6 +137,7 @@ void initializeEarlyMachineLICMPass(PassRegistry&);
 void initializeEarlyTailDuplicatePass(PassRegistry&);
 void initializeEdgeBundlesPass(PassRegistry&);
 void initializeEliminateAvailableExternallyLegacyPassPass(PassRegistry&);
+void initializeHTOCleanupLegacyPassPass(PassRegistry&);
 void initializeEmitAnnotationsLegacyPassPass(PassRegistry&);
 void initializeAnnotationStatsLegacyPassPass(PassRegistry&);
 void initializeEntryExitInstrumenterPass(PassRegistry&);

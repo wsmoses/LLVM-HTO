@@ -438,6 +438,7 @@ void PassManagerBuilder::populateModulePassManager(
       MPM.add(createSampleProfileLoaderPass(PGOSampleUse));
   }
 
+  MPM.add(createHTOCleanupPass());
   // Allow forcing function attributes as a debugging and tuning aid.
   MPM.add(createForceFunctionAttrsLegacyPass());
 

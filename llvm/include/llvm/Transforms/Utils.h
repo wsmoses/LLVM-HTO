@@ -107,6 +107,11 @@ FunctionPass *createEmitAnnotationsPass();
 
 //===----------------------------------------------------------------------===//
 //
+// HTOCleanup -
+ModulePass *createHTOCleanupPass();
+
+//===----------------------------------------------------------------------===//
+//
 // AnnotationStats - This pass is used to create annotations about derived LLVM
 // information that can be fed back in through the front end
 ModulePass *createAnnotationStatsPass();
