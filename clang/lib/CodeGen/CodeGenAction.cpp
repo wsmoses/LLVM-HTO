@@ -1105,7 +1105,7 @@ void BackendConsumer::OptimizationRemarkHandler(
       std::string poutput;
       raw_string_ostream postr(poutput);
       
-      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
+      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl) || isa<ClassTemplateSpecializationDecl>(dcl)) {
         postr << "#ifdef __cplusplus\n";
       }
       namespaceBefore(Contexts, dcl, postr, false);
@@ -1152,7 +1152,7 @@ void BackendConsumer::OptimizationRemarkHandler(
          postr << "}; "; 
       }
       postr << "\n";
-      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)) {
+      if (dcl->getKind() == Decl::Kind::CXXRecord || hasNamespace(dcl)|| isa<ClassTemplateSpecializationDecl>(dcl)) {
         postr << "#endif\n";
       }
       postr << "\n";
