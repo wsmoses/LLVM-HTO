@@ -687,7 +687,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
       FT = dyn_cast<FunctionProtoType>(AFT);
 
     Proto += "(";
-    
+
     if (Policy.nameMangler) {
         if (auto M = dyn_cast<CXXMethodDecl>(D)) {
             if (M->isInstance()) {
@@ -759,7 +759,7 @@ void DeclPrinter::VisitFunctionDecl(FunctionDecl *D) {
           Proto += FT->getExceptionType(I).getAsString(SubPolicy);
         }
       Proto += ")";
-    } else if (FT && isNoexceptExceptionSpec(FT->getExceptionSpecType())) {
+    } else if (!Policy.handleSubType && FT && isNoexceptExceptionSpec(FT->getExceptionSpecType())) {
       Proto += " noexcept";
       if (isComputedNoexcept(FT->getExceptionSpecType())) {
         Proto += "(";
