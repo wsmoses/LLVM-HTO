@@ -267,7 +267,7 @@ OptimizationRemark::OptimizationRemark(enum DiagnosticKind kind, const char *Pas
                                        const Function *Func)
     : DiagnosticInfoIROptimization(kind, DS_Remark, PassName,
                                    RemarkName, *Func, Func->getSubprogram(),
-                                   &getFirstFunctionBlock(Func)) {}
+                                   getFirstFunctionBlock(Func)) {}
 
 bool OptimizationRemark::isEnabled() const {
   const Function &Fn = getFunction();
