@@ -220,6 +220,7 @@ bool TemplateName::containsUnexpandedParameterPack() const {
   return getDependence() & TemplateNameDependence::UnexpandedPack;
 }
 
+#include "llvm/ADT/SmallPtrSet.h"
 llvm::SmallPtrSet<const TemplateDecl*, 4> running;
 
 void

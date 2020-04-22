@@ -22,6 +22,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/Utils.h"
 #include "llvm/Transforms/Utils/AnnotationStats.h"
+#include "llvm/InitializePasses.h"
 
 using namespace llvm;
 
