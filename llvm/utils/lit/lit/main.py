@@ -248,39 +248,24 @@ def execute_in_tmp_dir(run, lit_config):
 
 
 def print_histogram(tests):
-    test_times = [(t.getFullName(), t.result.elapsed) for t in tests]
-    lit.util.printHistogram(test_times, title='Tests')
-
-
-# Status code, summary label, group label
-failure_codes = [
-    (lit.Test.UNRESOLVED,  'Unresolved Tests',    'Unresolved'),
-    (lit.Test.TIMEOUT,     'Individual Timeouts', 'Timed Out'),
-    (lit.Test.FAIL,        'Unexpected Failures', 'Failing'),
-    (lit.Test.XPASS,       'Unexpected Passes',   'Unexpected Passing')
-]
-
-all_codes = [
-    (lit.Test.SKIPPED,     'Skipped Tests',     'Skipped'),
-    (lit.Test.UNSUPPORTED, 'Unsupported Tests', 'Unsupported'),
-    (lit.Test.PASS,        'Expected Passes',   ''),
-    (lit.Test.FLAKYPASS,   'Passes With Retry', ''),
-    (lit.Test.XFAIL,       'Expected Failures', 'Expected Failing'),
-] + failure_codes
+    test_times = [(t.getFullName(), t.result.elapsed)
+                  for t in tests if t.result.elapsed]
+    if test_times:
+        lit.util.printHistogram(test_times, title='Tests')
 
 
 def print_results(tests, elapsed, opts):
-    tests_by_code = {code: [] for (code, _, _) in all_codes}
+    tests_by_code = {code: [] for code in lit.Test.ResultCode.all_codes()}
     for test in tests:
         tests_by_code[test.result.code].append(test)
 
-    for (code, _, group_label) in all_codes:
-        print_group(code, group_label, tests_by_code[code], opts)
+    for code in lit.Test.ResultCode.all_codes():
+        print_group(tests_by_code[code], code, opts)
 
     print_summary(tests_by_code, opts.quiet, elapsed)
 
 
-def print_group(code, label, tests, opts):
+def print_group(tests, code, opts):
     if not tests:
         return
     # TODO(yln): FLAKYPASS? Make this more consistent!
@@ -290,7 +275,7 @@ def print_group(code, label, tests, opts):
        (lit.Test.UNSUPPORTED == code and not opts.show_unsupported):
         return
     print('*' * 20)
-    print('%s Tests (%d):' % (label, len(tests)))
+    print('{} Tests ({}):'.format(code.label, len(tests)))
     for test in tests:
         print('  %s' % test.getFullName())
     sys.stdout.write('\n')
@@ -300,8 +285,9 @@ def print_summary(tests_by_code, quiet, elapsed):
     if not quiet:
         print('\nTesting Time: %.2fs' % elapsed)
 
-    codes = failure_codes if quiet else all_codes
-    groups = [(label, len(tests_by_code[code])) for code, label, _ in codes]
+    codes = [c for c in lit.Test.ResultCode.all_codes()
+             if not quiet or c.isFailure]
+    groups = [(c.label, len(tests_by_code[c])) for c in codes]
     groups = [(label, count) for label, count in groups if count]
     if not groups:
         return
