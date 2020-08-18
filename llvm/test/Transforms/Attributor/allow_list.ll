@@ -2,6 +2,7 @@
 ; REQUIRES: asserts
 ; RUN: opt -S -passes=attributor --attributor-seed-allow-list asd < %s | FileCheck %s --check-prefixes=CHECK_DISABLED
 ; RUN: opt -S -passes=attributor --attributor-seed-allow-list AAValueSimplify < %s | FileCheck %s --check-prefixes=CHECK_ENABLED
+; RUN: opt -S -passes=attributor --attributor-seed-allow-list=AAIsDead < %s | FileCheck %s --check-prefixes=CHECK_ISDEAD
 
 ; RUN: opt -S -passes=attributor --attributor-function-seed-allow-list asd < %s | FileCheck %s --check-prefixes=CHECK_DISABLED_FUNCTION
 
