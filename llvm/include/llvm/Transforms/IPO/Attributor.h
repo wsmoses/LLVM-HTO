@@ -137,6 +137,14 @@ class Function;
 /// chain length.
 extern unsigned MaxInitializationChainLength;
 
+/// Helper RAII class.
+template <typename T> struct RAII {
+  RAII(T &Orig, T New = T()) : Orig(Orig), Old(Orig) { Orig = New; }
+  ~RAII() { Orig = Old; }
+  T &Orig;
+  T Old;
+};
+
 ///{
 enum class ChangeStatus {
   CHANGED,
@@ -1014,6 +1022,10 @@ struct Attributor {
       return AA;
     }
 
+    // Allow seeded attributes to declare dependencies.
+    // Remember the seeding state.
+    RAII<AttributorPhase> Q(Phase, AttributorPhase::UPDATE);
+
     {
       TimeTraceScope TimeScope(AA.getName() + "::initialize");
       ++InitializationChainLength;
@@ -1035,14 +1047,7 @@ struct Attributor {
       return AA;
     }
 
-    // Allow seeded attributes to declare dependencies.
-    // Remember the seeding state.
-    AttributorPhase OldPhase = Phase;
-    Phase = AttributorPhase::UPDATE;
-
     updateAA(AA);
-
-    Phase = OldPhase;
 
     if (TrackDependence && AA.getState().isValidState())
       recordDependence(AA, const_cast<AbstractAttribute &>(*QueryingAA),
