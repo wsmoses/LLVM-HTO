@@ -33,6 +33,10 @@ using namespace llvm;
 STATISTIC(NumReadNone, "Number of functions inferred as readnone");
 STATISTIC(NumReadOnly, "Number of functions inferred as readonly");
 STATISTIC(NumArgMemOnly, "Number of functions inferred as argmemonly");
+STATISTIC(NumInaccessibleMemory, "Number of functions inferred as inaccessiblememonly");
+STATISTIC(NumInaccessibleOrArgMemOnly, "Number of functions inferred as inaccessiblemem_or_argmemonly");
+STATISTIC(NumNoFree, "Number of functions inferred as nofree");
+STATISTIC(NumNoSync, "Number of functions inferred as nosync");
 STATISTIC(NumNoUnwind, "Number of functions inferred as nounwind");
 STATISTIC(NumNoCapture, "Number of arguments inferred as nocapture");
 STATISTIC(NumReadOnlyArg, "Number of arguments inferred as readonly");
@@ -54,6 +58,22 @@ static bool setOnlyReadsMemory(Function &F) {
     return false;
   F.setOnlyReadsMemory();
   ++NumReadOnly;
+  return true;
+}
+
+static bool setOnlyAccessesInaccessibleMemory(Function &F) {
+  if (F.onlyAccessesInaccessibleMemory())
+    return false;
+  F.setOnlyAccessesInaccessibleMemory();
+  ++NumInaccessibleMemory;
+  return true;
+}
+
+static bool setOnlyAccessesInaccessibleMemOrArgMem(Function &F) {
+  if (F.onlyAccessesInaccessibleMemOrArgMem())
+    return false;
+  F.setOnlyAccessesInaccessibleMemOrArgMem();
+  ++NumInaccessibleOrArgMemOnly;
   return true;
 }
 
@@ -151,7 +171,16 @@ static bool setNonLazyBind(Function &F) {
 static bool setDoesNotFreeMemory(Function &F) {
   if (F.hasFnAttribute(Attribute::NoFree))
     return false;
+  ++NumNoFree;
   F.addFnAttr(Attribute::NoFree);
+  return true;
+}
+
+static bool setDoesNotSynchronize(Function &F) {
+  if (F.hasFnAttribute(Attribute::NoSync))
+    return false;
+  ++NumNoSync;
+  F.addFnAttr(Attribute::NoSync);
   return true;
 }
 
@@ -186,8 +215,11 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     return Changed;
   case LibFunc_strchr:
   case LibFunc_strrchr:
-    Changed |= setOnlyReadsMemory(F);
+    Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotThrow(F);
+    Changed |= setOnlyReadsMemory(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_strtol:
   case LibFunc_strtod:
@@ -196,9 +228,13 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
   case LibFunc_strtoll:
   case LibFunc_strtold:
   case LibFunc_strtoull:
-    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 0);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotFreeMemory(F);
+    // Reading the locale is for now assumed to read inaccessible memory.
+    Changed |= setOnlyAccessesInaccessibleMemOrArgMem(F);
     return Changed;
   case LibFunc_strcpy:
   case LibFunc_strncpy:
@@ -207,13 +243,16 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     LLVM_FALLTHROUGH;
   case LibFunc_strcat:
   case LibFunc_strncat:
-    Changed |= setReturnedArg(F, 0);
-    LLVM_FALLTHROUGH;
   case LibFunc_stpcpy:
   case LibFunc_stpncpy:
-    Changed |= setDoesNotThrow(F);
+    // TODO: Mark argument 0 as "no-capture-maybe-returned" (not an enum
+    // attribute right now).
+    Changed |= setReturnedArg(F, 0);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_strxfrm:
     Changed |= setDoesNotThrow(F);
@@ -225,25 +264,32 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
   case LibFunc_strspn:      // 0,1
   case LibFunc_strncmp:     // 0,1
   case LibFunc_strcspn:     // 0,1
-  case LibFunc_strcoll:     // 0,1
   case LibFunc_strcasecmp:  // 0,1
-  case LibFunc_strncasecmp: //
-    Changed |= setOnlyReadsMemory(F);
+  case LibFunc_strncasecmp: // 0,1
+    Changed |= setOnlyAccessesArgMemory(F);
+    LLVM_FALLTHROUGH;
+  case LibFunc_strcoll:     // 0,1
     Changed |= setDoesNotThrow(F);
+    Changed |= setOnlyReadsMemory(F);
+    Changed |= setDoesNotFreeMemory(F);
     Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotCapture(F, 1);
     return Changed;
   case LibFunc_strstr:
   case LibFunc_strpbrk:
-    Changed |= setOnlyReadsMemory(F);
-    Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 1);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setOnlyReadsMemory(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_strtok:
   case LibFunc_strtok_r:
-    Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_scanf:
     Changed |= setRetAndArgsNoUndef(F);
@@ -258,10 +304,12 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     return Changed;
   case LibFunc_strdup:
   case LibFunc_strndup:
-    Changed |= setDoesNotThrow(F);
     Changed |= setRetDoesNotAlias(F);
     Changed |= setDoesNotCapture(F, 0);
     Changed |= setOnlyReadsMemory(F, 0);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesInaccessibleMemOrArgMem(F);
     return Changed;
   case LibFunc_stat:
   case LibFunc_statvfs:
@@ -308,17 +356,24 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
   case LibFunc_malloc:
     Changed |= setDoesNotThrow(F);
     Changed |= setRetDoesNotAlias(F);
+    // The inaccessible part is not observable
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesInaccessibleMemory(F);
     return Changed;
   case LibFunc_memcmp:
-    Changed |= setOnlyReadsMemory(F);
-    Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotCapture(F, 1);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setOnlyReadsMemory(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_memchr:
   case LibFunc_memrchr:
-    Changed |= setOnlyReadsMemory(F);
     Changed |= setDoesNotThrow(F);
+    Changed |= setOnlyReadsMemory(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_modf:
   case LibFunc_modff:
@@ -330,23 +385,29 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
     Changed |= setDoesNotAlias(F, 0);
     Changed |= setDoesNotAlias(F, 1);
     Changed |= setReturnedArg(F, 0);
-    Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_memmove:
     Changed |= setReturnedArg(F, 0);
-    Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_mempcpy:
   case LibFunc_memccpy:
     Changed |= setDoesNotAlias(F, 0);
     Changed |= setDoesNotAlias(F, 1);
-    Changed |= setDoesNotThrow(F);
     Changed |= setDoesNotCapture(F, 1);
     Changed |= setOnlyReadsMemory(F, 1);
+    Changed |= setDoesNotThrow(F);
+    Changed |= setDoesNotFreeMemory(F);
+    Changed |= setOnlyAccessesArgMemory(F);
     return Changed;
   case LibFunc_memcpy_chk:
     Changed |= setDoesNotThrow(F);
@@ -444,9 +505,12 @@ bool llvm::inferLibFuncAttributes(Function &F, const TargetLibraryInfo &TLI) {
   case LibFunc_atol:
   case LibFunc_atof:
   case LibFunc_atoll:
+    Changed |= setDoesNotCapture(F, 0);
     Changed |= setDoesNotThrow(F);
     Changed |= setOnlyReadsMemory(F);
-    Changed |= setDoesNotCapture(F, 0);
+    Changed |= setDoesNotFreeMemory(F);
+    // Reading the locale is for now assumed to read inaccessible memory.
+    Changed |= setOnlyAccessesInaccessibleMemOrArgMem(F);
     return Changed;
   case LibFunc_access:
     Changed |= setDoesNotThrow(F);

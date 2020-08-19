@@ -829,16 +829,16 @@ declare i8* @stpcpy(i8*, i8*)
 ; CHECK: declare i8* @stpncpy(i8*, i8* nocapture readonly, i64) [[G1]]
 declare i8* @stpncpy(i8*, i8*, i64)
 
-; CHECK: declare i32 @strcasecmp(i8* nocapture, i8* nocapture) [[G2]]
+; CHECK: declare i32 @strcasecmp(i8* nocapture, i8* nocapture) [[G4:#[0-9]+]]
 declare i32 @strcasecmp(i8*, i8*)
 
 ; CHECK: declare i8* @strcat(i8* returned, i8* nocapture readonly) [[G1]]
 declare i8* @strcat(i8*, i8*)
 
-; CHECK: declare i8* @strchr(i8*, i32) [[G2]]
+; CHECK: declare i8* @strchr(i8*, i32) [[G4]]
 declare i8* @strchr(i8*, i32)
 
-; CHECK: declare i32 @strcmp(i8* nocapture, i8* nocapture) [[G2]]
+; CHECK: declare i32 @strcmp(i8* nocapture, i8* nocapture) [[G4]]
 declare i32 @strcmp(i8*, i8*)
 
 ; CHECK: declare i32 @strcoll(i8* nocapture, i8* nocapture) [[G2]]
@@ -847,13 +847,13 @@ declare i32 @strcoll(i8*, i8*)
 ; CHECK: declare i8* @strcpy(i8* noalias returned, i8* noalias nocapture readonly) [[G1]]
 declare i8* @strcpy(i8*, i8*)
 
-; CHECK: declare i64 @strcspn(i8* nocapture, i8* nocapture) [[G2]]
+; CHECK: declare i64 @strcspn(i8* nocapture, i8* nocapture) [[G4]]
 declare i64 @strcspn(i8*, i8*)
 
 ; CHECK: declare noalias i8* @strdup(i8* nocapture readonly) [[G1]]
 declare i8* @strdup(i8*)
 
-; CHECK: declare i64 @strlen(i8* nocapture) [[G4:#[0-9]+]]
+; CHECK: declare i64 @strlen(i8* nocapture) [[G4]]
 declare i64 @strlen(i8*)
 
 ; CHECK: declare i32 @strncasecmp(i8* nocapture, i8* nocapture, i64) [[G2]]
