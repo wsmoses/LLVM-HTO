@@ -1291,7 +1291,7 @@ void CodeGenModule::SetLLVMFunctionAttributes(GlobalDecl GD,
                                               const CGFunctionInfo &Info,
                                               llvm::Function *F) {
   unsigned CallingConv;
-  llvm::AttributeList PAL;
+  llvm::AttributeList PAL = F->getAttributes();
   ConstructAttributeList(F->getName(), Info, GD, PAL, CallingConv, false);
   F->setAttributes(PAL);
   F->setCallingConv(static_cast<llvm::CallingConv::ID>(CallingConv));
@@ -3174,6 +3174,19 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
         return GetOrCreateMultiVersionResolver(GD, Ty, FD);
     }
   }
+  
+  // This function doesn't have a complete type (for example, the return
+  // type is an incomplete struct). Use a fake type instead, and make
+  // sure not to try to set attributes.
+  bool IsIncompleteFunction = false;
+
+  llvm::FunctionType *FTy;
+  if (isa<llvm::FunctionType>(Ty)) {
+    FTy = cast<llvm::FunctionType>(Ty);
+  } else {
+    FTy = llvm::FunctionType::get(VoidTy, false);
+    IsIncompleteFunction = true;
+  }
 
   // Lookup the entry, lazily creating it if necessary.
   llvm::GlobalValue *Entry = GetGlobalValue(MangledName);
@@ -3200,10 +3213,57 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
           (GD.getCanonicalDecl().getDecl() !=
            OtherGD.getCanonicalDecl().getDecl()) &&
           DiagnosedConflictingDefinitions.insert(GD).second) {
-        getDiags().Report(D->getLocation(), diag::err_duplicate_mangled_name)
-            << MangledName;
-        getDiags().Report(OtherGD.getDecl()->getLocation(),
-                          diag::note_previous_definition);
+	      //llvm::errs() << " GD:" << *GD.getCanonicalDecl().getDecl() << "\n";
+	      //llvm::errs() << " OtherGD:" << *OtherGD.getCanonicalDecl().getDecl() << "\n";
+	  if (auto Fn = llvm::dyn_cast<llvm::Function>(Entry))
+  for (auto D : {GD.getDecl(), OtherGD.getDecl()}) {
+    auto sr0 = Fn->hasParamAttribute(0, llvm::Attribute::StructRet);
+    auto sr1 = Fn->hasParamAttribute(1, llvm::Attribute::StructRet);
+    for(auto Attr: D->attrs()) {
+        if (isa<LLVMARGAttr>(Attr) || isa<LLVMRETAttr>(Attr) || isa<LLVMFNAttr>(Attr)) {
+            std::pair<StringRef, StringRef> AttributeAndValue;
+            int Index;
+
+            if (auto RetAttr = dyn_cast<LLVMRETAttr>(Attr)) {
+                AttributeAndValue = RetAttr->getLLVMAttrName().split('=');
+                Index = llvm::AttributeList::ReturnIndex;
+            } else if (auto ArgAttr = dyn_cast<LLVMARGAttr>(Attr)) {
+                AttributeAndValue = ArgAttr->getLLVMAttrName().split('=');
+                Index = llvm::AttributeList::FirstArgIndex + ArgAttr->getParamIndex();
+                if (sr1 && Index>=1) Index++;
+                if (sr0) Index++;
+            } else if (auto ArgAttr = dyn_cast<LLVMFNAttr>(Attr)) {
+                AttributeAndValue = ArgAttr->getLLVMAttrName().split('=');
+                Index = -1;
+            } else assert(0 && "must be llvm ret or arg attribute");
+            
+            //llvm::errs() << "found attribute " << AttributeAndValue.first << " in codegenfunction\n";
+            
+            llvm::Attribute::AttrKind AttrKind = llvm::Attribute::parseAttrKind(AttributeAndValue.first);
+            if (AttrKind != llvm::Attribute::None) {
+                assert(AttributeAndValue.second.size() == 0 && "Enum Attribute cannot have value");
+                if (Index == -1) {
+                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttrKind));
+                } else {
+                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttrKind));
+                }
+            }
+            else {
+                if (Index == -1) {
+                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
+                } else {
+                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
+                }
+            }
+        }
+    }
+  }
+
+
+        //getDiags().Report(D->getLocation(), diag::err_duplicate_mangled_name)
+        //    << (MangledName + "place1").str();
+        //getDiags().Report(OtherGD.getDecl()->getLocation(),
+        //                  diag::note_previous_definition);
       }
     }
 
@@ -3217,19 +3277,6 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
     // function, not just return a bitcast.)
     if (!IsForDefinition)
       return llvm::ConstantExpr::getBitCast(Entry, Ty->getPointerTo());
-  }
-
-  // This function doesn't have a complete type (for example, the return
-  // type is an incomplete struct). Use a fake type instead, and make
-  // sure not to try to set attributes.
-  bool IsIncompleteFunction = false;
-
-  llvm::FunctionType *FTy;
-  if (isa<llvm::FunctionType>(Ty)) {
-    FTy = cast<llvm::FunctionType>(Ty);
-  } else {
-    FTy = llvm::FunctionType::get(VoidTy, false);
-    IsIncompleteFunction = true;
   }
 
   llvm::Function *F =
@@ -3501,7 +3548,7 @@ CodeGenModule::GetOrCreateLLVMGlobal(StringRef MangledName,
           OtherD->hasInit() &&
           DiagnosedConflictingDefinitions.insert(D).second) {
         getDiags().Report(D->getLocation(), diag::err_duplicate_mangled_name)
-            << MangledName;
+            << (MangledName + "place2").str();
         getDiags().Report(OtherGD.getDecl()->getLocation(),
                           diag::note_previous_definition);
       }
@@ -4631,7 +4678,7 @@ void CodeGenModule::emitIFuncDefinition(GlobalDecl GD) {
     if (lookupRepresentativeDecl(MangledName, OtherGD) &&
         DiagnosedConflictingDefinitions.insert(GD).second) {
       Diags.Report(D->getLocation(), diag::err_duplicate_mangled_name)
-          << MangledName;
+          << (MangledName + "place3").str();
       Diags.Report(OtherGD.getDecl()->getLocation(),
                    diag::note_previous_definition);
     }
