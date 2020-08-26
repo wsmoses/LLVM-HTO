@@ -206,6 +206,17 @@ public:
     return Attribute(reinterpret_cast<AttributeImpl*>(RawPtr));
   }
 
+  static inline Attribute parseAttr(LLVMContext &Context, StringRef first, StringRef second) {
+    auto kind = getAttrKindFromName(first);
+    if (kind != llvm::Attribute::None) {
+      uint64_t val = 0;
+      if (second.size() != 0)
+        val = atoi(second.str().c_str());
+      return Attribute::get(Context, kind, val);
+    }
+    return Attribute::get(Context, first, second);
+  }
+
   static Attribute::AttrKind parseAttrKind(StringRef Kind);
 };
 

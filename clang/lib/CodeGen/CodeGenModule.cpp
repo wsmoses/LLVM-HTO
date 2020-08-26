@@ -3174,7 +3174,7 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
         return GetOrCreateMultiVersionResolver(GD, Ty, FD);
     }
   }
-  
+
   // This function doesn't have a complete type (for example, the return
   // type is an incomplete struct). Use a fake type instead, and make
   // sure not to try to set attributes.
@@ -3236,25 +3236,15 @@ llvm::Constant *CodeGenModule::GetOrCreateLLVMFunction(
                 AttributeAndValue = ArgAttr->getLLVMAttrName().split('=');
                 Index = -1;
             } else assert(0 && "must be llvm ret or arg attribute");
-            
+
             //llvm::errs() << "found attribute " << AttributeAndValue.first << " in codegenfunction\n";
-            
-            llvm::Attribute::AttrKind AttrKind = llvm::Attribute::parseAttrKind(AttributeAndValue.first);
-            if (AttrKind != llvm::Attribute::None) {
-                assert(AttributeAndValue.second.size() == 0 && "Enum Attribute cannot have value");
-                if (Index == -1) {
-                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttrKind));
-                } else {
-                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttrKind));
-                }
-            }
-            else {
-                if (Index == -1) {
-                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
-                } else {
-                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
-                }
-            }
+
+            auto Attr = llvm::Attribute::parseAttr(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second);
+              if (Index == -1) {
+                Fn->addFnAttr(Attr);
+              } else {
+                Fn->addAttribute(Index, Attr);
+              }
         }
     }
   }

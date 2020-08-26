@@ -794,7 +794,7 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
       if (FD->getBody() &&
           FD->getBody()->getStmtClass() == Stmt::CoroutineBodyStmtClass)
         SanOpts.Mask &= ~SanitizerKind::Null;
-  
+
   if (D) {
     auto sr0 = Fn->hasParamAttribute(0, llvm::Attribute::StructRet);
     auto sr1 = Fn->hasParamAttribute(1, llvm::Attribute::StructRet);
@@ -815,24 +815,14 @@ void CodeGenFunction::StartFunction(GlobalDecl GD, QualType RetTy,
                 AttributeAndValue = ArgAttr->getLLVMAttrName().split('=');
                 Index = -1;
             } else assert(0 && "must be llvm ret or arg attribute");
-            
+
             //llvm::errs() << "found attribute " << AttributeAndValue.first << " in codegenfunction\n";
-            
-            llvm::Attribute::AttrKind AttrKind = llvm::Attribute::parseAttrKind(AttributeAndValue.first);
-            if (AttrKind != llvm::Attribute::None) {
-                assert(AttributeAndValue.second.size() == 0 && "Enum Attribute cannot have value");
-                if (Index == -1) {
-                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttrKind));
-                } else {
-                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttrKind));
-                }
-            }
-            else {
-                if (Index == -1) {
-                  Fn->addFnAttr(llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
-                } else {
-                  Fn->addAttribute(Index, llvm::Attribute::get(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second));
-                }
+
+            auto Attr = llvm::Attribute::parseAttr(Fn->getContext(), AttributeAndValue.first, AttributeAndValue.second);
+            if (Index == -1) {
+              Fn->addFnAttr(Attr);
+            } else {
+              Fn->addAttribute(Index, Attr);
             }
         }
     }

@@ -2006,7 +2006,7 @@ void CodeGenModule::ConstructAttributeList(
                              llvm::toStringRef(CodeGenOpts.UniformWGSize));
     }
   }
-  
+
   if (!AttrOnCallSite) {
     if (TargetDecl && TargetDecl->hasAttr<CmseNSEntryAttr>())
       FuncAttrs.addAttribute("cmse_nonsecure_entry");
@@ -2096,7 +2096,7 @@ void CodeGenModule::ConstructAttributeList(
     ArgAttrs[IRFunctionArgs.getInallocaArgNo()] =
         llvm::AttributeSet::get(getLLVMContext(), Attrs);
   }
-  
+
   if (TargetDecl) {
     bool sr0 = 0 < ArgAttrs.size() && ArgAttrs[0].hasAttribute(llvm::Attribute::StructRet);
     auto sr1 = 1 < ArgAttrs.size() && ArgAttrs[1].hasAttribute(llvm::Attribute::StructRet);
@@ -2117,31 +2117,19 @@ void CodeGenModule::ConstructAttributeList(
                 AttributeAndValue = ArgAttr->getLLVMAttrName().split('=');
                 Index = -1;
             } else assert(0 && "must be llvm ret or arg attribute");
-            
-            llvm::Attribute::AttrKind AttrKind = llvm::Attribute::parseAttrKind(AttributeAndValue.first);
-            if (AttrKind != llvm::Attribute::None) {
-                assert(AttributeAndValue.second.size() == 0 && "Enum Attribute cannot have value");
-                if (Index == -1) {
-                  FuncAttrs.addAttribute(AttrKind);
-                } else if (Index == llvm::AttributeList::ReturnIndex) {
-                  RetAttrs.addAttribute(AttrKind);
-                } else {
-                  assert(Index - llvm::AttributeList::FirstArgIndex < ArgAttrs.size());
-                  assert(Index - llvm::AttributeList::FirstArgIndex >= 0);
-                  ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] =
-                    ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttribute(getLLVMContext(), AttrKind);
-                }
-            }
-            else {
-                if (Index == -1) {
-                  FuncAttrs.addAttribute(AttributeAndValue.first, AttributeAndValue.second);
-                } else if (Index == llvm::AttributeList::ReturnIndex) {
-                  RetAttrs.addAttribute(AttributeAndValue.first, AttributeAndValue.second);
-                } else {
-                  assert(Index - llvm::AttributeList::FirstArgIndex < ArgAttrs.size());
-                  assert(Index - llvm::AttributeList::FirstArgIndex >= 0);
-                  ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] = ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttribute(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
-                }
+
+            bool found = false;
+            auto Attr = llvm::Attribute::parseAttr(getLLVMContext(), AttributeAndValue.first, AttributeAndValue.second);
+            if (Index == -1) {
+              FuncAttrs.addAttribute(Attr);
+            } else if (Index == llvm::AttributeList::ReturnIndex) {
+              RetAttrs.addAttribute(Attr);
+            } else {
+              assert(Index - llvm::AttributeList::FirstArgIndex < ArgAttrs.size());
+              assert(Index - llvm::AttributeList::FirstArgIndex >= 0);
+              llvm::AttrBuilder B;
+              B.addAttribute(Attr);
+              ArgAttrs[Index - llvm::AttributeList::FirstArgIndex] = ArgAttrs[Index - llvm::AttributeList::FirstArgIndex].addAttributes(getLLVMContext(), llvm::AttributeSet::get(getLLVMContext(), B));
             }
         }
     }
