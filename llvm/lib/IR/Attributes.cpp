@@ -552,50 +552,6 @@ std::string Attribute::getAsString(bool InAttrGrp) const {
   llvm_unreachable("Unknown attribute");
 }
 
-Attribute::AttrKind Attribute::parseAttrKind(StringRef Kind) {
-  return StringSwitch<Attribute::AttrKind>(Kind)
-      .Case("alwaysinline", Attribute::AlwaysInline)
-      .Case("builtin", Attribute::Builtin)
-      .Case("cold", Attribute::Cold)
-      .Case("convergent", Attribute::Convergent)
-      .Case("inlinehint", Attribute::InlineHint)
-      .Case("jumptable", Attribute::JumpTable)
-      .Case("minsize", Attribute::MinSize)
-      .Case("naked", Attribute::Naked)
-      .Case("nobuiltin", Attribute::NoBuiltin)
-      .Case("nocapture", Attribute::NoCapture)
-      .Case("noduplicate", Attribute::NoDuplicate)
-      .Case("noimplicitfloat", Attribute::NoImplicitFloat)
-      .Case("noinline", Attribute::NoInline)
-      .Case("nonlazybind", Attribute::NonLazyBind)
-      .Case("noredzone", Attribute::NoRedZone)
-      .Case("noreturn", Attribute::NoReturn)
-      .Case("nocf_check", Attribute::NoCfCheck)
-      .Case("norecurse", Attribute::NoRecurse)
-      .Case("nounwind", Attribute::NoUnwind)
-      .Case("optforfuzzing", Attribute::OptForFuzzing)
-      .Case("optnone", Attribute::OptimizeNone)
-      .Case("optsize", Attribute::OptimizeForSize)
-      .Case("readnone", Attribute::ReadNone)
-      .Case("readonly", Attribute::ReadOnly)
-      .Case("argmemonly", Attribute::ArgMemOnly)
-      .Case("returns_twice", Attribute::ReturnsTwice)
-      .Case("safestack", Attribute::SafeStack)
-      .Case("shadowcallstack", Attribute::ShadowCallStack)
-      .Case("sanitize_address", Attribute::SanitizeAddress)
-      .Case("sanitize_hwaddress", Attribute::SanitizeHWAddress)
-      .Case("sanitize_memory", Attribute::SanitizeMemory)
-      .Case("sanitize_thread", Attribute::SanitizeThread)
-      .Case("sanitize_memtag", Attribute::SanitizeMemTag)
-      .Case("speculative_load_hardening", Attribute::SpeculativeLoadHardening)
-      .Case("ssp", Attribute::StackProtect)
-      .Case("sspreq", Attribute::StackProtectReq)
-      .Case("sspstrong", Attribute::StackProtectStrong)
-      .Case("strictfp", Attribute::StrictFP)
-      .Case("uwtable", Attribute::UWTable)
-      .Default(Attribute::None);
-}
-
 bool Attribute::operator<(Attribute A) const {
   if (!pImpl && !A.pImpl) return false;
   if (!pImpl) return true;
