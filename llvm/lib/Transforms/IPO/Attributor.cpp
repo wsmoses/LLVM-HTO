@@ -1918,7 +1918,7 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
   getOrCreateAAFor<AAWillReturn>(FPos);
 
   // Every function might contain instructions that cause "undefined behavior".
-  getOrCreateAAFor<AAUndefinedBehavior>(FPos);
+  //getOrCreateAAFor<AAUndefinedBehavior>(FPos);
 
   // Every function can be nounwind.
   getOrCreateAAFor<AANoUnwind>(FPos);
@@ -1976,7 +1976,7 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
       getOrCreateAAFor<AADereferenceable>(RetPos);
 
       // Every function with pointer return type might be marked noundef.
-      getOrCreateAAFor<AANoUndef>(RetPos);
+      //getOrCreateAAFor<AANoUndef>(RetPos);
     }
   }
 
@@ -2016,7 +2016,7 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
       getOrCreateAAFor<AAPrivatizablePtr>(ArgPos);
 
       // Every argument with pointer type might be marked noundef.
-      getOrCreateAAFor<AANoUndef>(ArgPos);
+      //getOrCreateAAFor<AANoUndef>(ArgPos);
     }
   }
 
@@ -2085,7 +2085,7 @@ void Attributor::identifyDefaultAbstractAttributes(Function &F) {
       getOrCreateAAFor<AANoFree>(CBArgPos);
 
       // Call site argument attribute "noundef".
-      getOrCreateAAFor<AANoUndef>(CBArgPos);
+      //getOrCreateAAFor<AANoUndef>(CBArgPos);
     }
     return true;
   };
