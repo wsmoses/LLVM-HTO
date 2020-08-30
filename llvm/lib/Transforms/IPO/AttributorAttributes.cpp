@@ -42,6 +42,12 @@ static cl::opt<bool> ManifestInternal(
     cl::desc("Manifest Attributor internal string attributes."),
     cl::init(false));
 
+static cl::opt<bool> AssumeNoReturnForLifeness(
+    "attributor-assume-noreturn", cl::Hidden,
+    cl::desc("Optimistically assume calls to be `noreturn`, can improve "
+             "performance if such calls exist, often increases compile time."),
+    cl::init(false));
+
 static cl::opt<int> MaxHeapToStackSize("max-heap-to-stack-size", cl::init(128),
                                        cl::Hidden);
 
@@ -3056,29 +3062,34 @@ struct AAIsDeadFunction : public AAIsDead {
       return ChangeStatus::CHANGED;
     }
 
-    // Flag to determine if we can change an invoke to a call assuming the
-    // callee is nounwind. This is not possible if the personality of the
-    // function allows to catch asynchronous exceptions.
-    bool Invoke2CallAllowed = !mayCatchAsynchronousExceptions(F);
+    // Since assume `noreturn` for each call site can be costly, we do it only
+    // conditionally. If we did not do it during the update stage we can skip
+    // this part.
+    if (AssumeNoReturnForLifeness) {
+      // Flag to determine if we can change an invoke to a call assuming the
+      // callee is nounwind. This is not possible if the personality of the
+      // function allows to catch asynchronous exceptions.
+      bool Invoke2CallAllowed = !mayCatchAsynchronousExceptions(F);
 
-    KnownDeadEnds.set_union(ToBeExploredFrom);
-    for (const Instruction *DeadEndI : KnownDeadEnds) {
-      auto *CB = dyn_cast<CallBase>(DeadEndI);
-      if (!CB)
-        continue;
-      const auto &NoReturnAA = A.getAndUpdateAAFor<AANoReturn>(
-          *this, IRPosition::callsite_function(*CB), /* TrackDependence */ true,
-          DepClassTy::OPTIONAL);
-      bool MayReturn = !NoReturnAA.isAssumedNoReturn();
-      if (MayReturn && (!Invoke2CallAllowed || !isa<InvokeInst>(CB)))
-        continue;
+      KnownDeadEnds.set_union(ToBeExploredFrom);
+      for (const Instruction *DeadEndI : KnownDeadEnds) {
+        auto *CB = dyn_cast<CallBase>(DeadEndI);
+        if (!CB)
+          continue;
+        const auto &NoReturnAA = A.getAndUpdateAAFor<AANoReturn>(
+            *this, IRPosition::callsite_function(*CB),
+            /* TrackDependence */ true, DepClassTy::OPTIONAL);
+        bool MayReturn = !NoReturnAA.isAssumedNoReturn();
+        if (MayReturn && (!Invoke2CallAllowed || !isa<InvokeInst>(CB)))
+          continue;
 
-      if (auto *II = dyn_cast<InvokeInst>(DeadEndI))
-        A.registerInvokeWithDeadSuccessor(const_cast<InvokeInst &>(*II));
-      else
-        A.changeToUnreachableAfterManifest(
-            const_cast<Instruction *>(DeadEndI->getNextNode()));
-      HasChanged = ChangeStatus::CHANGED;
+        if (auto *II = dyn_cast<InvokeInst>(DeadEndI))
+          A.registerInvokeWithDeadSuccessor(const_cast<InvokeInst &>(*II));
+        else
+          A.changeToUnreachableAfterManifest(
+              const_cast<Instruction *>(DeadEndI->getNextNode()));
+        HasChanged = ChangeStatus::CHANGED;
+      }
     }
 
     STATS_DECL(AAIsDead, BasicBlock, "Number of dead basic blocks deleted.");
@@ -3188,10 +3199,15 @@ identifyAliveSuccessors(Attributor &A, const CallBase &CB,
                         SmallVectorImpl<const Instruction *> &AliveSuccessors) {
   const IRPosition &IPos = IRPosition::callsite_function(CB);
 
-  const auto &NoReturnAA = A.getAndUpdateAAFor<AANoReturn>(
-      AA, IPos, /* TrackDependence */ true, DepClassTy::OPTIONAL);
-  if (NoReturnAA.isAssumedNoReturn())
-    return !NoReturnAA.isKnownNoReturn();
+  // Since assume `noreturn` for each call site can be costly, we do it only
+  // conditionally.
+  if (AssumeNoReturnForLifeness) {
+    const auto &NoReturnAA = A.getAndUpdateAAFor<AANoReturn>(
+        AA, IPos, /* TrackDependence */ true, DepClassTy::OPTIONAL);
+    if (NoReturnAA.isAssumedNoReturn())
+      return !NoReturnAA.isKnownNoReturn();
+  }
+
   if (CB.isTerminator())
     AliveSuccessors.push_back(&CB.getSuccessor(0)->front());
   else
@@ -3940,7 +3956,7 @@ struct AANoReturnImpl : public AANoReturn {
   void initialize(Attributor &A) override {
     AANoReturn::initialize(A);
     Function *F = getAssociatedFunction();
-    if (!F)
+    if (!F || F->isDeclaration())
       indicatePessimisticFixpoint();
   }
 
@@ -6122,9 +6138,23 @@ ChangeStatus AAMemoryBehaviorFloating::updateImpl(Attributor &A) {
       continue;
 
     // Check if the users of UserI should also be visited.
-    if (followUsersOfUseIn(A, U, UserI))
+    if (followUsersOfUseIn(A, U, UserI)) {
+      SmallVector<const Use *, 8> WL;
+      SmallPtrSet<const Use *, 8> Visited;
       for (const Use &UserIUse : UserI->uses())
-        Uses.insert(&UserIUse);
+        WL.push_back(&UserIUse);
+      while (!WL.empty()) {
+        const Use *UserIUse = WL.pop_back_val();
+        if (!Visited.insert(UserIUse).second)
+          continue;
+        const Instruction *UserIUseUserI =
+            cast<Instruction>(UserIUse->getUser());
+        if (UserIUseUserI->mayReadOrWriteMemory())
+          Uses.insert(UserIUse);
+        else if (followUsersOfUseIn(A, UserIUse, UserIUseUserI))
+          WL.push_back(UserIUse);
+      }
+    }
 
     // If UserI might touch memory we analyze the use in detail.
     if (UserI->mayReadOrWriteMemory())
