@@ -42,7 +42,7 @@ void EmitAnnotations(Function *F, OptimizationRemarkEmitter &ORE) {
         OptimizationRemarkAnnotation annotations(DEBUG_TYPE, "annotation ", F);
         AttributeList list = F->getAttributes();
         bool prev = false;
-        if (F->hasPrivateLinkage() || F->hasInternalLinkage()) return;
+        if (F->hasPrivateLinkage() || F->hasInternalLinkage() || F->hasLinkOnceODRLinkage() || F->hasLinkOnceLinkage()) return;
         if (F->getName() == "main") return;
 	if (list.hasFnAttribute("nohto")) return;
 	for(auto a : list.getFnAttributes()) {
